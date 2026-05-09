@@ -2,11 +2,14 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#4F46E5" />
   <title>Dashboard — Roadway</title>
   <link rel="stylesheet" href="../css/styles.css" />
 </head>
-<body>
+<body class="has-bottom-nav">
+
+<div id="nav-host"></div>
 
 <div class="app-shell">
   <aside class="sidebar">
@@ -14,11 +17,12 @@
       <span class="brand-mark">R</span>
       <span>Roadway</span>
     </a>
+    <p class="side-section">Rider</p>
     <ul class="side-nav">
       <li><a href="#" class="active" data-tab="overview">Overview</a></li>
       <li><a href="#" data-tab="bookings">My bookings</a></li>
       <li><a href="#" data-tab="profile">Profile</a></li>
-      <li><a href="#" data-tab="dl">License</a></li>
+      <li><a href="#" data-tab="dl">Driving licence</a></li>
     </ul>
     <p class="side-section">Discover</p>
     <ul class="side-nav">
@@ -31,12 +35,23 @@
   </aside>
 
   <main class="app-main">
+    <!-- Mobile sub-tab pills -->
+    <div class="container" style="padding: 0;">
+      <div class="filter-chips" id="mobile-tabs" style="margin-bottom: 14px;">
+        <button class="chip active" data-tab="overview">Overview</button>
+        <button class="chip" data-tab="bookings">Bookings</button>
+        <button class="chip" data-tab="profile">Profile</button>
+        <button class="chip" data-tab="dl">Licence</button>
+      </div>
+    </div>
+
     <div id="tab-content"><p class="muted">Loading…</p></div>
   </main>
 </div>
 
 <script src="../js/app.js"></script>
 <script>
+mountChrome('dash');
 Auth.redirectIfNotRole('user', '../pages/login.html?role=user');
 
 let me = null;
@@ -48,12 +63,15 @@ const tabs = {
   dl: renderDL,
 };
 
+function setActiveTab(name) {
+  document.querySelectorAll('[data-tab]').forEach(x => x.classList.toggle('active', x.dataset.tab === name));
+  tabs[name]();
+}
+
 document.querySelectorAll('[data-tab]').forEach(a => {
   a.addEventListener('click', e => {
     e.preventDefault();
-    document.querySelectorAll('[data-tab]').forEach(x => x.classList.remove('active'));
-    a.classList.add('active');
-    tabs[a.dataset.tab]();
+    setActiveTab(a.dataset.tab);
   });
 });
 
@@ -61,8 +79,7 @@ async function init() {
   try {
     me = await api('/users/me');
     const initialTab = qs('tab') || 'overview';
-    document.querySelectorAll('[data-tab]').forEach(x => x.classList.toggle('active', x.dataset.tab === initialTab));
-    tabs[initialTab] ? tabs[initialTab]() : tabs.overview();
+    setActiveTab(tabs[initialTab] ? initialTab : 'overview');
   } catch (err) {
     document.getElementById('tab-content').innerHTML = `<p class="muted">${escapeHtml(err.message)}</p>`;
   }
@@ -77,25 +94,25 @@ async function renderOverview() {
     const ongoing = bookings.filter(b => b.status === 'ONGOING' || b.status === 'CONFIRMED');
     const completed = bookings.filter(b => b.status === 'COMPLETED');
     root.innerHTML = `
-      <div class="flex justify-between items-start mb-6" style="flex-wrap: wrap; gap: 12px;">
-        <div>
-          <p class="eyebrow">Welcome back</p>
-          <h1 class="display mt-2">${escapeHtml(me.full_name || me.phone)}</h1>
-          <p class="muted mt-2">${me.dl_verified ? '✓ DL verified' : '⚠ Upload your DL to start booking'}</p>
+      <div class="dash-header">
+        <p class="eyebrow">Welcome back</p>
+        <h1 class="display mt-2">${escapeHtml(me.full_name || me.phone)}</h1>
+        <p class="muted mt-2 text-sm">${me.dl_verified ? '✓ DL verified' : '⚠ Upload your DL to start booking'}</p>
+        <div class="mt-4">
+          <a href="browse.html" class="btn btn-accent">Find a vehicle →</a>
         </div>
-        <a href="browse.html" class="btn btn-primary">Find a vehicle →</a>
       </div>
 
-      <div class="grid grid-4 mb-8">
+      <div class="grid grid-4 mb-6">
         <div class="stat-tile"><div class="label">Total trips</div><div class="value">${bookings.length}</div></div>
         <div class="stat-tile"><div class="label">Active</div><div class="value">${ongoing.length}</div></div>
         <div class="stat-tile"><div class="label">Completed</div><div class="value">${completed.length}</div></div>
-        <div class="stat-tile"><div class="label">DL status</div><div class="value" style="font-size: 1.4rem;">${me.dl_verified ? 'Verified' : 'Pending'}</div></div>
+        <div class="stat-tile"><div class="label">DL status</div><div class="value" style="font-size: 1.1rem;">${me.dl_verified ? 'Verified' : 'Pending'}</div></div>
       </div>
 
-      <div class="flex justify-between items-center mb-4">
+      <div class="flex justify-between items-center mb-3">
         <h2>Recent bookings</h2>
-        <a href="#" data-tab="bookings" onclick="document.querySelector('[data-tab=bookings]').click(); return false;" class="text-sm">View all →</a>
+        <button class="btn btn-ghost btn-sm" onclick="setActiveTab('bookings')">View all →</button>
       </div>
       ${bookings.length ? renderBookingTable(bookings.slice(0, 5)) : `<div class="empty-state"><h3>No trips yet</h3><p>Find your first ride.</p><a href="browse.html" class="btn btn-primary mt-4">Browse vehicles</a></div>`}
     `;
@@ -104,6 +121,8 @@ async function renderOverview() {
   }
 }
 
+window.setActiveTab = setActiveTab;
+
 /* -------------------------- BOOKINGS -------------------------- */
 async function renderBookings() {
   const root = document.getElementById('tab-content');
@@ -111,7 +130,7 @@ async function renderBookings() {
   try {
     const bookings = await api('/bookings');
     root.innerHTML = `
-      <div class="flex justify-between items-center mb-6">
+      <div class="flex justify-between items-center mb-6 flex-wrap gap-3">
         <div>
           <p class="eyebrow">Bookings</p>
           <h1 class="display mt-2">My trips</h1>
@@ -138,7 +157,7 @@ function renderBookingTable(bookings) {
               <td class="font-mono text-xs">${escapeHtml(b.booking_code)}</td>
               <td>#${b.vehicle_id}</td>
               <td class="text-xs">${fmtDate(b.pickup_at)}</td>
-              <td>${fmtMoney(b.total_amount)}</td>
+              <td class="font-semibold">${fmtMoney(b.total_amount)}</td>
               <td>${statusBadge(b.status)}</td>
               <td>${statusBadge(b.payment_status)}</td>
               <td><button class="btn btn-ghost btn-sm" onclick="openBooking(${b.id})">View</button></td>
@@ -160,15 +179,15 @@ window.openBooking = async function(id) {
       <div class="grid grid-2 gap-4">
         <div><p class="text-xs muted">Code</p><p class="font-mono">${escapeHtml(b.booking_code)}</p></div>
         <div><p class="text-xs muted">Status</p><p>${statusBadge(b.status)}</p></div>
-        <div><p class="text-xs muted">Pickup</p><p>${fmtDate(b.pickup_at)}</p></div>
-        <div><p class="text-xs muted">Drop-off</p><p>${fmtDate(b.dropoff_at)}</p></div>
+        <div><p class="text-xs muted">Pickup</p><p class="text-sm">${fmtDate(b.pickup_at)}</p></div>
+        <div><p class="text-xs muted">Drop-off</p><p class="text-sm">${fmtDate(b.dropoff_at)}</p></div>
         <div><p class="text-xs muted">Base</p><p>${fmtMoney(b.base_amount)}</p></div>
         <div><p class="text-xs muted">GST</p><p>${fmtMoney(b.tax_amount)}</p></div>
         <div><p class="text-xs muted">Deposit</p><p>${fmtMoney(b.security_deposit)}</p></div>
         <div><p class="text-xs muted">Total</p><p class="font-semibold">${fmtMoney(b.total_amount)}</p></div>
       </div>
-      ${b.pickup_otp && b.status === 'CONFIRMED' ? `<div class="card-flat mt-4"><p class="text-xs muted">Pickup OTP — show this to the partner</p><p class="display" style="font-size:1.6rem;letter-spacing:0.3em;">${b.pickup_otp}</p></div>` : ''}
-      ${b.dropoff_otp && b.status === 'ONGOING' ? `<div class="card-flat mt-4"><p class="text-xs muted">Drop-off OTP</p><p class="display" style="font-size:1.6rem;letter-spacing:0.3em;">${b.dropoff_otp}</p></div>` : ''}
+      ${b.pickup_otp && b.status === 'CONFIRMED' ? `<div class="card-flat mt-4"><p class="text-xs muted">Pickup OTP — show this to the partner</p><p class="otp-display">${b.pickup_otp}</p></div>` : ''}
+      ${b.dropoff_otp && b.status === 'ONGOING' ? `<div class="card-flat mt-4"><p class="text-xs muted">Drop-off OTP</p><p class="otp-display">${b.dropoff_otp}</p></div>` : ''}
     `;
     const footer = `
       ${isPending ? `<button class="btn btn-primary" onclick="payBooking(${b.id})">Pay ${fmtMoney(b.total_amount)}</button>` : ''}
@@ -220,7 +239,7 @@ window.openRate = function(bookingId) {
       <div class="field">
         <label class="label">Stars</label>
         <div class="stars-input" id="rate-stars">
-          ${[1,2,3,4,5].map(i => `<span data-v="${i}">★</span>`).join('')}
+          ${[1, 2, 3, 4, 5].map(i => `<span data-v="${i}">★</span>`).join('')}
         </div>
       </div>
       <div class="field">
@@ -276,9 +295,9 @@ async function renderProfile() {
             <label class="label">Gender</label>
             <select class="select" name="gender">
               <option value="">—</option>
-              <option ${me.gender==='MALE'?'selected':''}>MALE</option>
-              <option ${me.gender==='FEMALE'?'selected':''}>FEMALE</option>
-              <option ${me.gender==='OTHER'?'selected':''}>OTHER</option>
+              <option ${me.gender === 'MALE' ? 'selected' : ''}>MALE</option>
+              <option ${me.gender === 'FEMALE' ? 'selected' : ''}>FEMALE</option>
+              <option ${me.gender === 'OTHER' ? 'selected' : ''}>OTHER</option>
             </select>
           </div>
         </div>
@@ -336,7 +355,7 @@ async function renderDL() {
         <button type="submit" class="btn btn-primary">Upload image</button>
       </form>
 
-      ${me.dl_image ? `<div class="mt-6"><p class="text-xs muted mb-2">Uploaded image:</p><img src="${CONFIG.API_BASE}/${me.dl_image.replace(/^\/+/,'')}" style="max-width:300px; border-radius: var(--r-md);" /></div>` : ''}
+      ${me.dl_image ? `<div class="mt-6"><p class="text-xs muted mb-2">Uploaded image:</p><img src="${CONFIG.API_BASE}/${me.dl_image.replace(/^\/+/, '')}" style="max-width:300px; border-radius: var(--r-md);" /></div>` : ''}
     </div>
   `;
 

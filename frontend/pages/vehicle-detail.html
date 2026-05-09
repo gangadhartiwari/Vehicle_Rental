@@ -2,19 +2,50 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#4F46E5" />
   <title>Vehicle — Roadway</title>
   <link rel="stylesheet" href="../css/styles.css" />
+  <style>
+    .v-detail-image {
+      height: 240px;
+      border-radius: var(--r-lg);
+      overflow: hidden;
+      background: linear-gradient(135deg, var(--brand-tint) 0%, var(--accent-soft) 100%);
+      display: grid;
+      place-items: center;
+      color: rgba(79, 70, 229, 0.4);
+      font-size: 6rem;
+    }
+    .v-detail-image img { width: 100%; height: 100%; object-fit: cover; }
+    @media (min-width: 768px) { .v-detail-image { height: 380px; } }
+
+    .detail-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 24px;
+      align-items: flex-start;
+    }
+    @media (min-width: 980px) {
+      .detail-grid { grid-template-columns: 1.4fr 1fr; gap: 36px; }
+      .booking-aside { position: sticky; top: 84px; }
+    }
+
+    .spec-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+    @media (min-width: 540px) { .spec-grid { grid-template-columns: repeat(4, 1fr); } }
+    .spec-grid .card-flat { text-align: center; padding: 12px 8px; }
+    .spec-grid .card-flat .text-xs { margin-bottom: 4px; }
+  </style>
 </head>
-<body>
+<body class="has-bottom-nav">
 
 <div id="nav-host"></div>
 
-<section style="padding: 32px 0 80px;">
+<section style="padding: 18px 0 32px;">
   <div class="container">
-    <a href="browse.html" class="text-sm muted">← Back to browse</a>
+    <a href="browse.html" class="btn btn-ghost btn-sm" style="padding-left: 0;">← Back to browse</a>
 
-    <div id="content" style="margin-top: 16px;">
+    <div id="content" class="mt-4">
       <p class="muted">Loading…</p>
     </div>
   </div>
@@ -22,7 +53,7 @@
 
 <script src="../js/app.js"></script>
 <script>
-document.getElementById('nav-host').innerHTML = renderTopNav('browse');
+mountChrome('browse');
 
 const vehicleId = qs('id');
 let currentVehicle = null;
@@ -43,26 +74,26 @@ async function load() {
 function render(v, ratings) {
   const images = (v.images || '').split(',').filter(s => s.trim());
   const features = (v.features || '').split(',').filter(s => s.trim());
-  const mainImg = images[0] ? (images[0].startsWith('http') ? images[0] : `${CONFIG.API_BASE}/${images[0].replace(/^\/+/,'')}`) : null;
+  const mainImg = images[0] ? (images[0].startsWith('http') ? images[0] : `${CONFIG.API_BASE}/${images[0].replace(/^\/+/, '')}`) : null;
 
   return `
-    <div class="grid" style="grid-template-columns: 1.4fr 1fr; gap: 40px; align-items: flex-start;">
+    <div class="detail-grid">
       <!-- LEFT: details -->
       <div>
-        <div style="height: 380px; border-radius: var(--r-lg); overflow: hidden; background: linear-gradient(135deg,#2d3a30,#0d4f3c); display: grid; place-items: center; color: rgba(255,255,255,0.4); font-size: 7rem;">
-          ${mainImg ? `<img src="${mainImg}" style="width:100%;height:100%;object-fit:cover;" onerror="this.outerHTML='${vehicleIcon(v.vehicle_type)}'"/>` : vehicleIcon(v.vehicle_type)}
+        <div class="v-detail-image">
+          ${mainImg ? `<img src="${mainImg}" onerror="this.outerHTML='${vehicleIcon(v.vehicle_type)}'"/>` : vehicleIcon(v.vehicle_type)}
         </div>
 
         <div class="mt-6">
           <p class="eyebrow">${v.vehicle_type}</p>
-          <div class="flex justify-between items-start mt-2">
+          <div class="flex justify-between items-start mt-2 gap-3 flex-wrap">
             <h1 class="display">${escapeHtml(v.brand)} ${escapeHtml(v.model)}</h1>
             ${v.avg_rating > 0 ? `<div class="flex items-center gap-2">${starsHtml(v.avg_rating)} <span class="muted text-sm">${v.avg_rating}</span></div>` : ''}
           </div>
-          <p class="muted mt-2">${v.year} · ${v.color || ''} · Reg. <span class="font-mono">${escapeHtml(v.registration_number)}</span></p>
+          <p class="muted mt-2 text-sm">${v.year} · ${v.color || ''} · Reg. <span class="font-mono">${escapeHtml(v.registration_number)}</span></p>
         </div>
 
-        <div class="grid grid-4 mt-6">
+        <div class="spec-grid mt-6">
           <div class="card-flat">
             <p class="text-xs muted">Fuel</p>
             <p class="font-semibold">${v.fuel_type}</p>
@@ -81,20 +112,20 @@ function render(v, ratings) {
           </div>
         </div>
 
-        ${v.description ? `<div class="mt-6"><h3>About this vehicle</h3><p class="muted mt-2">${escapeHtml(v.description)}</p></div>` : ''}
+        ${v.description ? `<div class="mt-6"><h3>About this vehicle</h3><p class="muted mt-2 text-sm">${escapeHtml(v.description)}</p></div>` : ''}
 
         ${features.length ? `<div class="mt-6"><h3>Features</h3>
-          <div class="flex gap-2 mt-4" style="flex-wrap: wrap;">
+          <div class="flex gap-2 mt-3 flex-wrap">
             ${features.map(f => `<span class="badge badge-neutral">${escapeHtml(f.trim())}</span>`).join('')}
           </div></div>` : ''}
 
         ${v.pickup_address ? `<div class="mt-6"><h3>Pickup location</h3>
-          <p class="muted mt-2">📍 ${escapeHtml(v.pickup_address)}${v.pickup_city ? ', ' + escapeHtml(v.pickup_city) : ''}</p></div>` : ''}
+          <p class="muted mt-2 text-sm">📍 ${escapeHtml(v.pickup_address)}${v.pickup_city ? ', ' + escapeHtml(v.pickup_city) : ''}</p></div>` : ''}
 
         <div class="mt-8">
           <h3>Reviews ${ratings.length ? `(${ratings.length})` : ''}</h3>
           ${ratings.length ? ratings.map(r => `
-            <div class="card-flat mt-4">
+            <div class="card-flat mt-3">
               <div class="flex justify-between items-center">
                 ${starsHtml(r.stars)}
                 <span class="text-xs muted">${timeAgo(r.created_at)}</span>
@@ -105,11 +136,11 @@ function render(v, ratings) {
         </div>
       </div>
 
-      <!-- RIGHT: booking widget -->
-      <aside style="position: sticky; top: 88px;">
+      <!-- RIGHT: booking -->
+      <aside class="booking-aside">
         <div class="card">
           <div class="flex items-baseline gap-2">
-            <span class="display" style="font-size: 2.2rem; font-weight: 600; color: var(--accent);">${fmtMoney(v.hourly_rate)}</span>
+            <span class="display" style="font-size: 2rem; color: var(--brand);">${fmtMoney(v.hourly_rate)}</span>
             <span class="muted text-sm">/hour</span>
           </div>
           <p class="text-sm muted mt-2">Day rate ${fmtMoney(v.daily_rate)} · Deposit ${fmtMoney(v.security_deposit)}</p>
@@ -135,16 +166,16 @@ function render(v, ratings) {
             <div id="estimate-box" class="card-flat mt-4 hidden">
               <h4>Estimate</h4>
               <div class="flex justify-between mt-2 text-sm"><span class="muted">Duration</span><span id="e-duration">—</span></div>
-              <div class="flex justify-between text-sm"><span class="muted">Base</span><span id="e-base">—</span></div>
-              <div class="flex justify-between text-sm"><span class="muted">GST</span><span id="e-tax">—</span></div>
-              <div class="flex justify-between text-sm"><span class="muted">Deposit</span><span id="e-deposit">—</span></div>
+              <div class="flex justify-between text-sm mt-1"><span class="muted">Base</span><span id="e-base">—</span></div>
+              <div class="flex justify-between text-sm mt-1"><span class="muted">GST</span><span id="e-tax">—</span></div>
+              <div class="flex justify-between text-sm mt-1"><span class="muted">Deposit</span><span id="e-deposit">—</span></div>
               <div class="divider" style="margin: 12px 0;"></div>
-              <div class="flex justify-between"><strong>Total payable</strong><strong id="e-total">—</strong></div>
+              <div class="flex justify-between"><strong>Total payable</strong><strong id="e-total" style="color: var(--brand);">—</strong></div>
             </div>
 
             <button type="submit" class="btn btn-primary btn-block btn-lg mt-4">Book now</button>
           </form>
-          <p class="text-xs muted text-center mt-4">You'll be redirected to your dashboard for payment.</p>
+          <p class="text-xs muted text-center mt-3">You'll be redirected to your dashboard for payment.</p>
         </div>
       </aside>
     </div>

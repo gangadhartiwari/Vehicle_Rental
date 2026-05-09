@@ -2,11 +2,14 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#4F46E5" />
   <title>Admin Dashboard — Roadway</title>
   <link rel="stylesheet" href="../css/styles.css" />
 </head>
-<body>
+<body class="has-bottom-nav">
+
+<div id="nav-host"></div>
 
 <div class="app-shell">
   <aside class="sidebar">
@@ -30,12 +33,23 @@
   </aside>
 
   <main class="app-main">
+    <div class="container" style="padding: 0;">
+      <div class="filter-chips" id="mobile-tabs" style="margin-bottom: 14px;">
+        <button class="chip active" data-tab="overview">Overview</button>
+        <button class="chip" data-tab="users">Users</button>
+        <button class="chip" data-tab="partners">Partners</button>
+        <button class="chip" data-tab="vehicles">Vehicles</button>
+        <button class="chip" data-tab="bookings">Bookings</button>
+        <button class="chip" data-tab="ratings">Ratings</button>
+      </div>
+    </div>
     <div id="tab-content"><p class="muted">Loading…</p></div>
   </main>
 </div>
 
 <script src="../js/app.js"></script>
 <script>
+mountChrome('dash');
 Auth.redirectIfNotRole('admin', '../pages/login.html?role=admin');
 
 const tabs = {
@@ -47,12 +61,16 @@ const tabs = {
   ratings: renderRatings,
 };
 
+function setActiveTab(name) {
+  document.querySelectorAll('[data-tab]').forEach(x => x.classList.toggle('active', x.dataset.tab === name));
+  tabs[name]();
+}
+window.setActiveTab = setActiveTab;
+
 document.querySelectorAll('[data-tab]').forEach(a => {
   a.addEventListener('click', e => {
     e.preventDefault();
-    document.querySelectorAll('[data-tab]').forEach(x => x.classList.remove('active'));
-    a.classList.add('active');
-    tabs[a.dataset.tab]();
+    setActiveTab(a.dataset.tab);
   });
 });
 
@@ -63,9 +81,11 @@ async function renderOverview() {
   try {
     const s = await api('/admin/stats');
     root.innerHTML = `
-      <p class="eyebrow">Operations</p>
-      <h1 class="display mt-2 mb-2">Platform overview</h1>
-      <p class="muted mb-8 text-sm">As of ${fmtDate(s.as_of)}</p>
+      <div class="dash-header">
+        <p class="eyebrow">Operations</p>
+        <h1 class="display mt-2">Platform overview</h1>
+        <p class="muted mt-2 text-sm">As of ${fmtDate(s.as_of)}</p>
+      </div>
 
       <div class="grid grid-4 mb-8">
         <div class="stat-tile">
@@ -223,7 +243,7 @@ window.reviewPartner = async function(id) {
           </div>
           ${d.is_verified ? '<span class="badge badge-success">Verified</span>' : '<span class="badge badge-warn">Pending</span>'}
         </div>
-        <a href="${CONFIG.API_BASE}/${d.file_url.replace(/^\/+/,'')}" target="_blank" class="btn btn-secondary btn-sm mt-2">View file</a>
+        <a href="${CONFIG.API_BASE}/${d.file_url.replace(/^\/+/, '')}" target="_blank" class="btn btn-secondary btn-sm mt-2">View file</a>
       </div>`).join('');
 
     const m = modal({
@@ -343,8 +363,8 @@ async function renderBookings() {
                 <td class="text-xs">${fmtDate(b.pickup_at)}</td>
                 <td>${statusBadge(b.status)}</td>
                 <td>${statusBadge(b.payment_status)}</td>
-                <td>${fmtMoney(b.total_amount)}</td>
-                <td>${['CONFIRMED','PENDING_PAYMENT','ONGOING'].includes(b.status) ? `<button class="btn btn-ghost btn-sm" onclick="forceCancel(${b.id})">Cancel</button>` : ''}</td>
+                <td class="font-semibold">${fmtMoney(b.total_amount)}</td>
+                <td>${['CONFIRMED', 'PENDING_PAYMENT', 'ONGOING'].includes(b.status) ? `<button class="btn btn-ghost btn-sm" onclick="forceCancel(${b.id})">Cancel</button>` : ''}</td>
               </tr>
             `).join('')}
           </tbody>

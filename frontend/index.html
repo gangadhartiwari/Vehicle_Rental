@@ -2,11 +2,12 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Roadway — Self-drive vehicle rentals, redefined</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#4F46E5" />
+  <title>Roadway — Self-drive bikes, cars & autos. On rent.</title>
   <link rel="stylesheet" href="css/styles.css" />
 </head>
-<body>
+<body class="has-bottom-nav">
 
 <div id="nav-host"></div>
 
@@ -15,73 +16,62 @@
   <div class="container">
     <div class="hero-grid">
       <div>
-        <p class="eyebrow reveal reveal-1">Self-drive · Bikes · Cars · Autos</p>
-        <h1 class="display reveal reveal-2" style="margin-top: 14px;">
-          The road is yours. <span class="italic-serif" style="color: var(--accent);">Take it.</span>
+        <span class="pill reveal reveal-1">⚡ Unlock with a single OTP</span>
+        <h1 class="reveal reveal-2 mt-3">
+          The road is yours. <span class="accent-word">Take it.</span>
         </h1>
-        <p class="reveal reveal-3" style="margin-top: 22px; font-size: 1.1rem; max-width: 520px; color: var(--ink-muted);">
-          Rent verified bikes, cars and autos by the hour or by the week. Book in minutes,
-          unlock with an OTP, and drive away. No paperwork, no haggling.
+        <p class="reveal reveal-3 mt-4 muted" style="font-size: 1.02rem; max-width: 540px;">
+          Rent verified bikes, cars and autos by the hour, day or week. No paperwork, no haggling — book in 60 seconds.
         </p>
-        <div class="reveal reveal-4 flex gap-3 mt-8" style="flex-wrap: wrap;">
+
+        <div class="reveal reveal-4 mt-6 flex gap-3 flex-wrap">
           <a href="pages/browse.html" class="btn btn-primary btn-lg">Browse vehicles →</a>
           <a href="pages/login.html?role=user" class="btn btn-secondary btn-lg">Sign in</a>
         </div>
 
-        <div class="mt-8 flex gap-6" style="flex-wrap: wrap;">
+        <div class="mt-8 flex gap-6 flex-wrap">
           <div>
-            <div class="display" style="font-size: 1.6rem; font-weight: 600;">12,000+</div>
-            <div class="text-sm muted">Trips completed</div>
+            <div class="display" style="font-size: 1.5rem; color: var(--ink-strong);">12,000+</div>
+            <div class="text-sm muted">Trips done</div>
           </div>
           <div>
-            <div class="display" style="font-size: 1.6rem; font-weight: 600;">4.8 ★</div>
-            <div class="text-sm muted">Avg. rating</div>
+            <div class="display" style="font-size: 1.5rem; color: var(--ink-strong);">4.8 ★</div>
+            <div class="text-sm muted">Rider rating</div>
           </div>
           <div>
-            <div class="display" style="font-size: 1.6rem; font-weight: 600;">28</div>
+            <div class="display" style="font-size: 1.5rem; color: var(--ink-strong);">28</div>
             <div class="text-sm muted">Cities live</div>
           </div>
         </div>
       </div>
 
+      <!-- Search card -->
       <div class="reveal reveal-3">
-        <!-- Decorative card stack -->
-        <div style="position: relative; height: 460px;">
-          <div class="card" style="position: absolute; top: 0; right: 0; width: 320px; transform: rotate(3deg);">
-            <div class="flex justify-between items-start mb-4">
-              <div>
-                <p class="eyebrow">Featured</p>
-                <h3 style="margin-top: 4px;">Royal Enfield Classic 350</h3>
-              </div>
-              <span class="badge badge-success">Available</span>
-            </div>
-            <div style="height: 140px; background: linear-gradient(135deg,#2d3a30,#0d4f3c); border-radius: 10px; display: grid; place-items: center; font-size: 4rem; color: rgba(255,255,255,0.4);">🏍️</div>
-            <div class="flex justify-between items-baseline mt-4">
-              <div>
-                <span class="display" style="font-size: 1.4rem; font-weight: 600; color: var(--accent);">₹40</span>
-                <span class="text-xs muted">/hr</span>
-              </div>
-              <div class="stars">★★★★★</div>
-            </div>
+        <div class="search-card">
+          <div class="search-tabs" id="search-tabs">
+            <button class="search-tab active" data-type="">🚦 All</button>
+            <button class="search-tab" data-type="BIKE">🏍️ Bike</button>
+            <button class="search-tab" data-type="CAR">🚗 Car</button>
+            <button class="search-tab" data-type="AUTO">🛺 Auto</button>
           </div>
 
-          <div class="card" style="position: absolute; bottom: 0; left: 0; width: 320px; transform: rotate(-4deg); background: var(--ink); color: var(--bg); border-color: var(--ink);">
-            <div class="flex justify-between items-start mb-4">
-              <div>
-                <p class="eyebrow" style="color: rgba(255,255,255,0.6);">Trending</p>
-                <h3 style="margin-top: 4px; color: var(--bg);">Mahindra Thar</h3>
-              </div>
-              <span class="badge" style="background: var(--accent); color: white;">Hot</span>
+          <form id="quick-search">
+            <div class="field">
+              <label class="label">📍 Where are you?</label>
+              <input class="input" name="city" placeholder="e.g. Indore, Mumbai, Bengaluru" />
             </div>
-            <div style="height: 140px; background: linear-gradient(135deg, #5a3d29, #c2410c); border-radius: 10px; display: grid; place-items: center; font-size: 4rem; color: rgba(255,255,255,0.4);">🚗</div>
-            <div class="flex justify-between items-baseline mt-4">
-              <div>
-                <span class="display" style="font-size: 1.4rem; font-weight: 600; color: #f6a96b;">₹250</span>
-                <span class="text-xs" style="color: rgba(255,255,255,0.5);">/hr</span>
+            <div class="field-row">
+              <div class="field" style="margin: 0;">
+                <label class="label">Pickup</label>
+                <input class="input" type="datetime-local" name="pickup_at" />
               </div>
-              <div class="stars">★★★★★</div>
+              <div class="field" style="margin: 0;">
+                <label class="label">Drop-off</label>
+                <input class="input" type="datetime-local" name="dropoff_at" />
+              </div>
             </div>
-          </div>
+            <button class="btn btn-primary btn-block btn-lg mt-4" type="submit">Search vehicles</button>
+          </form>
         </div>
       </div>
     </div>
@@ -89,27 +79,27 @@
 </section>
 
 <!-- ========== HOW IT WORKS ========== -->
-<section id="how" style="padding: 80px 0; border-top: 1px solid var(--line);">
+<section class="section section-bordered" id="how">
   <div class="container">
-    <div class="text-center mb-8">
+    <div class="text-center section-head">
       <p class="eyebrow">How it works</p>
-      <h2 class="display mt-2">Three steps. <span class="italic-serif" style="color: var(--accent);">Then the open road.</span></h2>
+      <h2 class="display mt-2">Three steps. Then the open road.</h2>
     </div>
 
     <div class="grid grid-3">
-      <div class="card">
-        <div style="font-family: var(--font-display); font-size: 3rem; color: var(--accent); line-height: 1;">01</div>
-        <h3 class="mt-4">Find your ride</h3>
-        <p class="muted mt-2 text-sm">Filter by city, vehicle type, fuel and date. See real photos, real ratings, real prices.</p>
+      <div class="card card-hover">
+        <div class="step-num">01</div>
+        <h3>Find your ride</h3>
+        <p class="muted mt-2 text-sm">Filter by city, vehicle type and dates. Real photos, real ratings, real prices.</p>
       </div>
-      <div class="card">
-        <div style="font-family: var(--font-display); font-size: 3rem; color: var(--accent); line-height: 1;">02</div>
-        <h3 class="mt-4">Book & pay</h3>
-        <p class="muted mt-2 text-sm">Confirm pickup window, pay securely, and receive a one-time pickup code on your phone.</p>
+      <div class="card card-hover">
+        <div class="step-num">02</div>
+        <h3>Book & pay</h3>
+        <p class="muted mt-2 text-sm">Pick your pickup window, pay securely, and get a one-time pickup OTP on your phone.</p>
       </div>
-      <div class="card">
-        <div style="font-family: var(--font-display); font-size: 3rem; color: var(--accent); line-height: 1;">03</div>
-        <h3 class="mt-4">Drive away</h3>
+      <div class="card card-hover">
+        <div class="step-num">03</div>
+        <h3>Drive away</h3>
         <p class="muted mt-2 text-sm">Show the OTP at pickup, drive, return with another OTP. We handle the invoice.</p>
       </div>
     </div>
@@ -117,44 +107,44 @@
 </section>
 
 <!-- ========== ROLES ========== -->
-<section style="padding: 80px 0; background: var(--bg-elevated); border-top: 1px solid var(--line);">
+<section class="section section-bordered" style="background: var(--bg-soft);">
   <div class="container">
-    <div class="text-center mb-8">
+    <div class="text-center section-head">
       <p class="eyebrow">Built for everyone</p>
-      <h2 class="display mt-2">One platform. <span class="italic-serif">Three doors.</span></h2>
+      <h2 class="display mt-2">One platform. Three doors.</h2>
     </div>
 
     <div class="grid grid-3">
-      <div class="card card-hover" style="border-color: var(--accent);">
+      <div class="card card-hover" style="border-color: var(--brand);">
         <span class="badge badge-accent">Riders</span>
-        <h3 class="mt-4">Book & ride</h3>
-        <p class="muted mt-2 text-sm">Sign up with your phone, upload your DL, and you're off. Hourly, daily, weekly — your call.</p>
-        <a href="pages/login.html?role=user" class="btn btn-primary mt-6 btn-block">Sign in as rider →</a>
+        <h3 class="mt-3">Book & ride</h3>
+        <p class="muted mt-2 text-sm">Sign up with your phone, upload your DL, and you're off. Hourly, daily or weekly — your call.</p>
+        <a href="pages/login.html?role=user" class="btn btn-primary btn-block mt-4">Sign in as rider →</a>
       </div>
       <div class="card card-hover">
         <span class="badge badge-info">Partners</span>
-        <h3 class="mt-4">List your vehicles</h3>
+        <h3 class="mt-3">List your vehicles</h3>
         <p class="muted mt-2 text-sm">Submit KYC, list bikes, cars or autos, set your rates. We handle bookings and payouts.</p>
-        <a href="pages/login.html?role=partner" class="btn btn-secondary mt-6 btn-block">Partner login →</a>
+        <a href="pages/login.html?role=partner" class="btn btn-secondary btn-block mt-4">Partner login →</a>
       </div>
       <div class="card card-hover">
         <span class="badge badge-neutral">Admins</span>
-        <h3 class="mt-4">Operate the platform</h3>
+        <h3 class="mt-3">Operate the platform</h3>
         <p class="muted mt-2 text-sm">Approve KYC, verify vehicles, monitor trips, moderate ratings, see live revenue.</p>
-        <a href="pages/login.html?role=admin" class="btn btn-secondary mt-6 btn-block">Admin login →</a>
+        <a href="pages/login.html?role=admin" class="btn btn-secondary btn-block mt-4">Admin login →</a>
       </div>
     </div>
   </div>
 </section>
 
 <!-- ========== FOOTER ========== -->
-<footer style="border-top: 1px solid var(--line); padding: 40px 0; margin-top: 60px;">
-  <div class="container flex justify-between items-center" style="flex-wrap: wrap; gap: 20px;">
+<footer class="site-footer">
+  <div class="container flex justify-between items-center flex-wrap gap-4">
     <div class="brand">
       <span class="brand-mark">R</span>
       <span>Roadway</span>
     </div>
-    <p class="text-sm muted">© 2025 Roadway. Self-drive vehicle rentals.</p>
+    <p class="text-sm muted">© 2025 Roadway · Self-drive vehicle rentals</p>
     <div class="flex gap-4">
       <a class="text-sm muted" href="#">Terms</a>
       <a class="text-sm muted" href="#">Privacy</a>
@@ -165,7 +155,26 @@
 
 <script src="js/app.js"></script>
 <script>
-  document.getElementById('nav-host').innerHTML = renderTopNav('home');
+  mountChrome('home');
+
+  // Search tabs
+  let activeType = '';
+  document.querySelectorAll('#search-tabs .search-tab').forEach(t => {
+    t.addEventListener('click', () => {
+      document.querySelectorAll('#search-tabs .search-tab').forEach(x => x.classList.remove('active'));
+      t.classList.add('active');
+      activeType = t.dataset.type || '';
+    });
+  });
+
+  document.getElementById('quick-search').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const params = new URLSearchParams();
+    if (activeType) params.set('vehicle_type', activeType);
+    for (const [k, v] of fd.entries()) if (v) params.set(k, v);
+    window.location.href = 'pages/browse.html' + (params.toString() ? '?' + params.toString() : '');
+  });
 </script>
 
 </body>

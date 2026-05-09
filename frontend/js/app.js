@@ -1,12 +1,17 @@
 /* =========================================================================
-   ROADWAY — API client + helpers
+   ROADWAY — API client + helpers (mobile-first)
    ========================================================================= */
 
 const CONFIG = {
-  // Set the API base. Defaults to localhost:8000 — change as needed.
   API_BASE: localStorage.getItem('rw_api_base') || 'http://localhost:8000',
   API_PREFIX: '/api/v1',
 };
+
+/* Detect path depth so a single nav module works from /index.html and /pages/* */
+function pathPrefix() {
+  // Pages live in /pages/*. Anything else is at root.
+  return location.pathname.includes('/pages/') ? '../' : '';
+}
 
 const Auth = {
   get accessToken() { return localStorage.getItem('rw_access_token'); },
@@ -20,10 +25,11 @@ const Auth = {
     localStorage.setItem('rw_user_id', userId);
   },
   clear() {
-    ['rw_access_token','rw_refresh_token','rw_role','rw_user_id'].forEach(k => localStorage.removeItem(k));
+    ['rw_access_token', 'rw_refresh_token', 'rw_role', 'rw_user_id'].forEach(k => localStorage.removeItem(k));
   },
   isLoggedIn() { return !!this.accessToken; },
-  redirectIfNotRole(role, fallback = '../index.html') {
+  redirectIfNotRole(role, fallback) {
+    fallback = fallback || (pathPrefix() + 'pages/login.html?role=' + role);
     if (!this.isLoggedIn() || this.role !== role) {
       window.location.href = fallback;
     }
@@ -85,10 +91,10 @@ function modal({ title, body, footer, onClose }) {
     <div class="modal" role="dialog">
       <div class="modal-header">
         <h3>${title}</h3>
-        <button class="btn btn-ghost btn-sm" data-modal-close>✕</button>
+        <button class="icon-btn" data-modal-close aria-label="Close">✕</button>
       </div>
       <div class="modal-body">${body}</div>
-      ${footer ? `<div class="modal-footer mt-6 flex gap-3" style="justify-content:flex-end">${footer}</div>` : ''}
+      ${footer ? `<div class="modal-footer">${footer}</div>` : ''}
     </div>
   `;
   document.body.appendChild(backdrop);
@@ -134,13 +140,14 @@ function timeAgo(d) {
   if (!d) return '—';
   const diff = (Date.now() - new Date(d).getTime()) / 1000;
   if (diff < 60) return 'just now';
-  if (diff < 3600) return `${Math.floor(diff/60)}m ago`;
-  if (diff < 86400) return `${Math.floor(diff/3600)}h ago`;
-  if (diff < 2592000) return `${Math.floor(diff/86400)}d ago`;
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  if (diff < 2592000) return `${Math.floor(diff / 86400)}d ago`;
   return fmtDateShort(d);
 }
 
 function statusBadge(status) {
+  if (!status) return '';
   const map = {
     AVAILABLE: 'success', BOOKED: 'info', INACTIVE: 'neutral', UNDER_MAINTENANCE: 'warn',
     PENDING: 'neutral', SUBMITTED: 'info', APPROVED: 'success', REJECTED: 'danger',
@@ -148,7 +155,7 @@ function statusBadge(status) {
     PAID: 'success', UNPAID: 'warn', REFUNDED: 'neutral', FAILED: 'danger',
   };
   const cls = map[status] || 'neutral';
-  return `<span class="badge badge-${cls}">${status.replace(/_/g,' ').toLowerCase()}</span>`;
+  return `<span class="badge badge-${cls}">${status.replace(/_/g, ' ').toLowerCase()}</span>`;
 }
 
 function starsHtml(n) {
@@ -161,7 +168,7 @@ function vehicleImageUrl(v) {
   const first = v.images.split(',')[0]?.trim();
   if (!first) return null;
   if (first.startsWith('http')) return first;
-  return `${CONFIG.API_BASE}/${first.replace(/^\/+/,'')}`;
+  return `${CONFIG.API_BASE}/${first.replace(/^\/+/, '')}`;
 }
 
 function vehicleIcon(type) {
@@ -170,7 +177,7 @@ function vehicleIcon(type) {
 
 function escapeHtml(s) {
   if (s === null || s === undefined) return '';
-  return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+  return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
 function qs(name) {
@@ -189,47 +196,102 @@ function setLoading(btn, isLoading) {
   }
 }
 
-/* ---------------------------- NAV BUILDERS ---------------------------- */
-function renderTopNav(active = '') {
+/* ---------------------------- TOP BAR ---------------------------- */
+function renderTopBar(active = '') {
+  const p = pathPrefix();
   const isLoggedIn = Auth.isLoggedIn();
   const role = Auth.role;
-  const dashHref = role === 'partner' ? 'pages/partner-dashboard.html'
-    : role === 'admin' ? 'pages/admin-dashboard.html'
-    : 'pages/user-dashboard.html';
+  const dashHref = role === 'partner' ? p + 'pages/partner-dashboard.html'
+    : role === 'admin' ? p + 'pages/admin-dashboard.html'
+      : p + 'pages/user-dashboard.html';
+
   return `
-    <nav class="navbar">
-      <div class="container nav-inner">
-        <a href="index.html" class="brand">
+    <header class="topbar">
+      <div class="container topbar-inner">
+        <a href="${p}index.html" class="brand">
           <span class="brand-mark">R</span>
           <span>Roadway</span>
         </a>
         <ul class="nav-links">
-          <li><a href="index.html" ${active==='home'?'style="color:var(--accent)"':''}>Home</a></li>
-          <li><a href="pages/browse.html" ${active==='browse'?'style="color:var(--accent)"':''}>Browse</a></li>
-          <li><a href="index.html#how">How it works</a></li>
-          <li><a href="pages/partner-onboard.html">Become a partner</a></li>
+          <li><a href="${p}index.html" class="${active === 'home' ? 'active' : ''}">Home</a></li>
+          <li><a href="${p}pages/browse.html" class="${active === 'browse' ? 'active' : ''}">Browse</a></li>
+          <li><a href="${p}pages/partner-onboard.html" class="${active === 'partners' ? 'active' : ''}">Partner</a></li>
         </ul>
         <div class="nav-actions">
           ${isLoggedIn
-            ? `<a class="btn btn-ghost btn-sm" href="${active.startsWith('dash')?'#':dashHref}">Dashboard</a>
-               <button class="btn btn-secondary btn-sm" onclick="logout()">Sign out</button>`
-            : `<a class="btn btn-ghost btn-sm" href="pages/login.html?role=partner">Partner</a>
-               <a class="btn btn-ghost btn-sm" href="pages/login.html?role=admin">Admin</a>
-               <a class="btn btn-primary btn-sm" href="pages/login.html?role=user">Sign in</a>`}
+      ? `<a class="btn btn-secondary btn-sm" href="${dashHref}">Dashboard</a>
+                 <button class="icon-btn" onclick="logout()" title="Sign out" aria-label="Sign out">⎋</button>`
+      : `<a class="btn btn-primary btn-sm" href="${p}pages/login.html?role=user">Sign in</a>`}
         </div>
       </div>
+    </header>
+  `;
+}
+
+/* ---------------------------- BOTTOM NAV (MOBILE) ---------------------------- */
+function renderBottomNav(active = '') {
+  const p = pathPrefix();
+  const role = Auth.role;
+  const isLoggedIn = Auth.isLoggedIn();
+
+  const dashHref = role === 'partner' ? p + 'pages/partner-dashboard.html'
+    : role === 'admin' ? p + 'pages/admin-dashboard.html'
+      : p + 'pages/user-dashboard.html';
+
+  const dashLabel = role === 'partner' ? 'Fleet' : role === 'admin' ? 'Admin' : 'Trips';
+
+  return `
+    <nav class="bottom-nav">
+      <a href="${p}index.html" class="${active === 'home' ? 'active' : ''}">
+        <span class="icon">🏠</span><span>Home</span>
+      </a>
+      <a href="${p}pages/browse.html" class="${active === 'browse' ? 'active' : ''}">
+        <span class="icon">🔎</span><span>Browse</span>
+      </a>
+      ${isLoggedIn ? `
+        <a href="${dashHref}" class="${active === 'dash' ? 'active' : ''}">
+          <span class="icon">📋</span><span>${dashLabel}</span>
+        </a>
+        <a href="#" onclick="logout(); return false;">
+          <span class="icon">⎋</span><span>Sign out</span>
+        </a>` : `
+        <a href="${p}pages/partner-onboard.html" class="${active === 'partners' ? 'active' : ''}">
+          <span class="icon">🤝</span><span>Partner</span>
+        </a>
+        <a href="${p}pages/login.html?role=user" class="${active === 'auth' ? 'active' : ''}">
+          <span class="icon">👤</span><span>Sign in</span>
+        </a>`}
     </nav>
   `;
+}
+
+/* Inject top bar + bottom nav on any page that calls this */
+function mountChrome(active = '') {
+  const navHost = document.getElementById('nav-host');
+  if (navHost) navHost.innerHTML = renderTopBar(active);
+
+  // Bottom nav on all main pages (not auth)
+  if (document.body.classList.contains('has-bottom-nav')) {
+    const existing = document.querySelector('.bottom-nav');
+    if (existing) existing.remove();
+    document.body.insertAdjacentHTML('beforeend', renderBottomNav(active));
+  }
 }
 
 function logout() {
   Auth.clear();
   toast('Signed out');
-  setTimeout(() => { window.location.href = '/index.html'.replace(/^\//, '') || 'index.html'; }, 400);
+  setTimeout(() => {
+    window.location.href = pathPrefix() + 'index.html';
+  }, 400);
 }
 
-/* Allow logout from anywhere */
+/* Expose globals */
 window.logout = logout;
 window.api = api;
 window.Auth = Auth;
 window.CONFIG = CONFIG;
+window.mountChrome = mountChrome;
+window.renderTopBar = renderTopBar;
+window.renderBottomNav = renderBottomNav;
+window.pathPrefix = pathPrefix;
