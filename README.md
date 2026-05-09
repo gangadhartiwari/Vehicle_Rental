@@ -36,6 +36,19 @@ A production-ready FastAPI backend for a self-drive vehicle rental platform — 
 
 ---
 
+## 🎨 Frontend
+
+A complete modern frontend is included in the [`frontend/`](./frontend) folder — vanilla HTML, CSS, and JS, no build step. To run it:
+
+```bash
+cd frontend
+python -m http.server 3000
+```
+
+Then open http://localhost:3000. See [`frontend/README.md`](./frontend/README.md) for the full page tour, design notes, and the end-to-end booking lifecycle walkthrough.
+
+---
+
 ## 🚀 Quick Start
 
 ### Prerequisites

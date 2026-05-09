@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Browse vehicles — Roadway</title>
+  <link rel="stylesheet" href="../css/styles.css" />
+</head>
+<body>
+
+<div id="nav-host"></div>
+
+<section style="padding: 32px 0 16px;">
+  <div class="container">
+    <p class="eyebrow">Browse</p>
+    <h1 class="display mt-2">Find your <span class="italic-serif" style="color: var(--accent);">ride</span></h1>
+    <p class="muted mt-2">Verified vehicles, transparent pricing, instant booking.</p>
+  </div>
+</section>
+
+<!-- Filters -->
+<section style="padding: 16px 0 24px;">
+  <div class="container">
+    <div class="card">
+      <form id="filter-form" class="grid grid-4" style="gap: 14px;">
+        <div class="field" style="margin: 0;">
+          <label class="label">Vehicle type</label>
+          <select class="select" name="vehicle_type">
+            <option value="">All types</option>
+            <option value="BIKE">Bike</option>
+            <option value="CAR">Car</option>
+            <option value="AUTO">Auto</option>
+          </select>
+        </div>
+        <div class="field" style="margin: 0;">
+          <label class="label">City</label>
+          <input class="input" name="city" placeholder="e.g. Indore" />
+        </div>
+        <div class="field" style="margin: 0;">
+          <label class="label">Min ₹/hr</label>
+          <input class="input" type="number" name="min_price" min="0" placeholder="0" />
+        </div>
+        <div class="field" style="margin: 0;">
+          <label class="label">Max ₹/hr</label>
+          <input class="input" type="number" name="max_price" min="0" placeholder="500" />
+        </div>
+        <div class="field" style="margin: 0;">
+          <label class="label">Fuel</label>
+          <select class="select" name="fuel_type">
+            <option value="">Any</option>
+            <option value="PETROL">Petrol</option>
+            <option value="DIESEL">Diesel</option>
+            <option value="ELECTRIC">Electric</option>
+            <option value="CNG">CNG</option>
+          </select>
+        </div>
+        <div class="field" style="margin: 0;">
+          <label class="label">Transmission</label>
+          <select class="select" name="transmission">
+            <option value="">Any</option>
+            <option value="MANUAL">Manual</option>
+            <option value="AUTOMATIC">Automatic</option>
+          </select>
+        </div>
+        <div class="field" style="margin: 0;">
+          <label class="label">Pickup at</label>
+          <input class="input" type="datetime-local" name="pickup_at" />
+        </div>
+        <div class="field" style="margin: 0;">
+          <label class="label">Drop-off at</label>
+          <input class="input" type="datetime-local" name="dropoff_at" />
+        </div>
+        <div style="grid-column: 1 / -1; display: flex; gap: 10px; justify-content: flex-end;">
+          <button type="reset" class="btn btn-ghost">Reset</button>
+          <button type="submit" class="btn btn-primary">Apply filters</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</section>
+
+<!-- Results -->
+<section style="padding: 24px 0 80px;">
+  <div class="container">
+    <div class="flex justify-between items-center mb-4">
+      <p class="muted text-sm" id="result-count">Loading…</p>
+    </div>
+    <div id="results" class="grid grid-3"></div>
+  </div>
+</section>
+
+<script src="../js/app.js"></script>
+<script>
+document.getElementById('nav-host').innerHTML = renderTopNav('browse');
+
+async function loadVehicles(params = {}) {
+  const grid = document.getElementById('results');
+  grid.innerHTML = '<p class="muted">Loading vehicles…</p>';
+  try {
+    const data = await api('/vehicles/search', { query: params });
+    document.getElementById('result-count').textContent = `${data.length} vehicle${data.length !== 1 ? 's' : ''} found`;
+    if (data.length === 0) {
+      grid.innerHTML = `
+        <div class="empty-state" style="grid-column: 1/-1;">
+          <h3>No matches yet</h3>
+          <p>Try widening your filters or pick a different city.</p>
+        </div>`;
+      return;
+    }
+    grid.innerHTML = data.map(v => vehicleCard(v)).join('');
+  } catch (err) {
+    grid.innerHTML = `<p class="muted">Couldn't load — ${escapeHtml(err.message)}</p>`;
+  }
+}
+
+function vehicleCard(v) {
+  const img = vehicleImageUrl(v);
+  const distance = v.distance_km ? `<span class="badge badge-neutral">${v.distance_km} km away</span>` : '';
+  return `
+    <a class="vehicle-card" href="vehicle-detail.html?id=${v.id}">
+      <div class="v-image">
+        ${img ? `<img src="${img}" alt="${escapeHtml(v.brand)} ${escapeHtml(v.model)}" onerror="this.style.display='none'"/>` : vehicleIcon(v.vehicle_type)}
+      </div>
+      <div class="v-body">
+        <div class="flex justify-between items-start">
+          <div>
+            <div class="v-title">${escapeHtml(v.brand)} ${escapeHtml(v.model)}</div>
+            <div class="v-meta">${v.year} · ${v.fuel_type.toLowerCase()} · ${v.transmission.toLowerCase()} · ${v.seats} seats</div>
+          </div>
+          ${v.avg_rating > 0 ? starsHtml(v.avg_rating) : ''}
+        </div>
+        ${v.pickup_city ? `<p class="text-xs muted mb-2">📍 ${escapeHtml(v.pickup_city)}</p>` : ''}
+        <div class="v-price-row">
+          <div>
+            <span class="v-price">${fmtMoney(v.hourly_rate)}</span>
+            <span class="v-rate-unit">/hr</span>
+          </div>
+          ${distance}
+        </div>
+      </div>
+    </a>`;
+}
+
+document.getElementById('filter-form').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const params = {};
+  for (const [k, v] of fd.entries()) {
+    if (v) params[k] = v;
+  }
+  loadVehicles(params);
+});
+
+document.getElementById('filter-form').addEventListener('reset', () => {
+  setTimeout(() => loadVehicles(), 0);
+});
+
+loadVehicles();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard — Roadway</title>
+  <link rel="stylesheet" href="../css/styles.css" />
+</head>
+<body>
+
+<div class="app-shell">
+  <aside class="sidebar">
+    <a href="../index.html" class="brand">
+      <span class="brand-mark">R</span>
+      <span>Roadway</span>
+    </a>
+    <ul class="side-nav">
+      <li><a href="#" class="active" data-tab="overview">Overview</a></li>
+      <li><a href="#" data-tab="bookings">My bookings</a></li>
+      <li><a href="#" data-tab="profile">Profile</a></li>
+      <li><a href="#" data-tab="dl">License</a></li>
+    </ul>
+    <p class="side-section">Discover</p>
+    <ul class="side-nav">
+      <li><a href="browse.html">Browse vehicles</a></li>
+    </ul>
+    <p class="side-section">Account</p>
+    <ul class="side-nav">
+      <li><a href="#" onclick="logout(); return false;">Sign out</a></li>
+    </ul>
+  </aside>
+
+  <main class="app-main">
+    <div id="tab-content"><p class="muted">Loading…</p></div>
+  </main>
+</div>
+
+<script src="../js/app.js"></script>
+<script>
+Auth.redirectIfNotRole('user', '../pages/login.html?role=user');
+
+let me = null;
+
+const tabs = {
+  overview: renderOverview,
+  bookings: renderBookings,
+  profile: renderProfile,
+  dl: renderDL,
+};
+
+document.querySelectorAll('[data-tab]').forEach(a => {
+  a.addEventListener('click', e => {
+    e.preventDefault();
+    document.querySelectorAll('[data-tab]').forEach(x => x.classList.remove('active'));
+    a.classList.add('active');
+    tabs[a.dataset.tab]();
+  });
+});
+
+async function init() {
+  try {
+    me = await api('/users/me');
+    const initialTab = qs('tab') || 'overview';
+    document.querySelectorAll('[data-tab]').forEach(x => x.classList.toggle('active', x.dataset.tab === initialTab));
+    tabs[initialTab] ? tabs[initialTab]() : tabs.overview();
+  } catch (err) {
+    document.getElementById('tab-content').innerHTML = `<p class="muted">${escapeHtml(err.message)}</p>`;
+  }
+}
+
+/* -------------------------- OVERVIEW -------------------------- */
+async function renderOverview() {
+  const root = document.getElementById('tab-content');
+  root.innerHTML = '<p class="muted">Loading…</p>';
+  try {
+    const bookings = await api('/bookings');
+    const ongoing = bookings.filter(b => b.status === 'ONGOING' || b.status === 'CONFIRMED');
+    const completed = bookings.filter(b => b.status === 'COMPLETED');
+    root.innerHTML = `
+      <div class="flex justify-between items-start mb-6" style="flex-wrap: wrap; gap: 12px;">
+        <div>
+          <p class="eyebrow">Welcome back</p>
+          <h1 class="display mt-2">${escapeHtml(me.full_name || me.phone)}</h1>
+          <p class="muted mt-2">${me.dl_verified ? '✓ DL verified' : '⚠ Upload your DL to start booking'}</p>
+        </div>
+        <a href="browse.html" class="btn btn-primary">Find a vehicle →</a>
+      </div>
+
+      <div class="grid grid-4 mb-8">
+        <div class="stat-tile"><div class="label">Total trips</div><div class="value">${bookings.length}</div></div>
+        <div class="stat-tile"><div class="label">Active</div><div class="value">${ongoing.length}</div></div>
+        <div class="stat-tile"><div class="label">Completed</div><div class="value">${completed.length}</div></div>
+        <div class="stat-tile"><div class="label">DL status</div><div class="value" style="font-size: 1.4rem;">${me.dl_verified ? 'Verified' : 'Pending'}</div></div>
+      </div>
+
+      <div class="flex justify-between items-center mb-4">
+        <h2>Recent bookings</h2>
+        <a href="#" data-tab="bookings" onclick="document.querySelector('[data-tab=bookings]').click(); return false;" class="text-sm">View all →</a>
+      </div>
+      ${bookings.length ? renderBookingTable(bookings.slice(0, 5)) : `<div class="empty-state"><h3>No trips yet</h3><p>Find your first ride.</p><a href="browse.html" class="btn btn-primary mt-4">Browse vehicles</a></div>`}
+    `;
+  } catch (err) {
+    root.innerHTML = `<p class="muted">${escapeHtml(err.message)}</p>`;
+  }
+}
+
+/* -------------------------- BOOKINGS -------------------------- */
+async function renderBookings() {
+  const root = document.getElementById('tab-content');
+  root.innerHTML = '<p class="muted">Loading…</p>';
+  try {
+    const bookings = await api('/bookings');
+    root.innerHTML = `
+      <div class="flex justify-between items-center mb-6">
+        <div>
+          <p class="eyebrow">Bookings</p>
+          <h1 class="display mt-2">My trips</h1>
+        </div>
+        <a href="browse.html" class="btn btn-primary">+ New booking</a>
+      </div>
+      ${bookings.length ? renderBookingTable(bookings) : `<div class="empty-state"><h3>No bookings yet</h3><p>Find your first ride.</p></div>`}
+    `;
+  } catch (err) {
+    root.innerHTML = `<p class="muted">${escapeHtml(err.message)}</p>`;
+  }
+}
+
+function renderBookingTable(bookings) {
+  return `
+    <div class="table-wrap">
+      <table class="table">
+        <thead><tr>
+          <th>Code</th><th>Vehicle</th><th>Pickup</th><th>Total</th><th>Status</th><th>Payment</th><th></th>
+        </tr></thead>
+        <tbody>
+          ${bookings.map(b => `
+            <tr>
+              <td class="font-mono text-xs">${escapeHtml(b.booking_code)}</td>
+              <td>#${b.vehicle_id}</td>
+              <td class="text-xs">${fmtDate(b.pickup_at)}</td>
+              <td>${fmtMoney(b.total_amount)}</td>
+              <td>${statusBadge(b.status)}</td>
+              <td>${statusBadge(b.payment_status)}</td>
+              <td><button class="btn btn-ghost btn-sm" onclick="openBooking(${b.id})">View</button></td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+window.openBooking = async function(id) {
+  try {
+    const b = await api(`/bookings/${id}`);
+    const isPending = b.status === 'PENDING_PAYMENT';
+    const canCancel = ['PENDING_PAYMENT', 'CONFIRMED'].includes(b.status);
+    const canRate = b.status === 'COMPLETED';
+    const body = `
+      <div class="grid grid-2 gap-4">
+        <div><p class="text-xs muted">Code</p><p class="font-mono">${escapeHtml(b.booking_code)}</p></div>
+        <div><p class="text-xs muted">Status</p><p>${statusBadge(b.status)}</p></div>
+        <div><p class="text-xs muted">Pickup</p><p>${fmtDate(b.pickup_at)}</p></div>
+        <div><p class="text-xs muted">Drop-off</p><p>${fmtDate(b.dropoff_at)}</p></div>
+        <div><p class="text-xs muted">Base</p><p>${fmtMoney(b.base_amount)}</p></div>
+        <div><p class="text-xs muted">GST</p><p>${fmtMoney(b.tax_amount)}</p></div>
+        <div><p class="text-xs muted">Deposit</p><p>${fmtMoney(b.security_deposit)}</p></div>
+        <div><p class="text-xs muted">Total</p><p class="font-semibold">${fmtMoney(b.total_amount)}</p></div>
+      </div>
+      ${b.pickup_otp && b.status === 'CONFIRMED' ? `<div class="card-flat mt-4"><p class="text-xs muted">Pickup OTP — show this to the partner</p><p class="display" style="font-size:1.6rem;letter-spacing:0.3em;">${b.pickup_otp}</p></div>` : ''}
+      ${b.dropoff_otp && b.status === 'ONGOING' ? `<div class="card-flat mt-4"><p class="text-xs muted">Drop-off OTP</p><p class="display" style="font-size:1.6rem;letter-spacing:0.3em;">${b.dropoff_otp}</p></div>` : ''}
+    `;
+    const footer = `
+      ${isPending ? `<button class="btn btn-primary" onclick="payBooking(${b.id})">Pay ${fmtMoney(b.total_amount)}</button>` : ''}
+      ${canCancel ? `<button class="btn btn-secondary" onclick="cancelBooking(${b.id})">Cancel</button>` : ''}
+      ${b.status !== 'PENDING_PAYMENT' && b.status !== 'CANCELLED' ? `<button class="btn btn-secondary" onclick="downloadInvoice(${b.id})">Invoice</button>` : ''}
+      ${canRate ? `<button class="btn btn-primary" onclick="openRate(${b.id})">Rate trip</button>` : ''}
+    `;
+    modal({ title: `Booking ${b.booking_code}`, body, footer });
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+};
+
+window.payBooking = async function(id) {
+  if (!await confirmModal('Process mock payment? This will confirm your booking.', { confirmText: 'Pay now' })) return;
+  try {
+    await api(`/bookings/${id}/pay`, { method: 'POST', body: { booking_id: id, method: 'CARD' } });
+    toast('Payment confirmed', 'success');
+    document.querySelector('.modal-backdrop')?.remove();
+    renderBookings();
+  } catch (err) { toast(err.message, 'error'); }
+};
+
+window.cancelBooking = async function(id) {
+  if (!await confirmModal('Cancel this booking? Refund rules apply.', { danger: true, confirmText: 'Cancel booking' })) return;
+  try {
+    await api(`/bookings/${id}/cancel`, { method: 'POST', body: { reason: 'User cancelled' } });
+    toast('Booking cancelled', 'success');
+    document.querySelector('.modal-backdrop')?.remove();
+    renderBookings();
+  } catch (err) { toast(err.message, 'error'); }
+};
+
+window.downloadInvoice = async function(id) {
+  try {
+    const res = await api(`/bookings/${id}/invoice`, { raw: true });
+    if (!res.ok) { toast('Invoice unavailable', 'error'); return; }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    window.open(url, '_blank');
+  } catch (err) { toast(err.message, 'error'); }
+};
+
+window.openRate = function(bookingId) {
+  document.querySelector('.modal-backdrop')?.remove();
+  const m = modal({
+    title: 'Rate this trip',
+    body: `
+      <div class="field">
+        <label class="label">Stars</label>
+        <div class="stars-input" id="rate-stars">
+          ${[1,2,3,4,5].map(i => `<span data-v="${i}">★</span>`).join('')}
+        </div>
+      </div>
+      <div class="field">
+        <label class="label">Review (optional)</label>
+        <textarea class="textarea" id="rate-text" placeholder="Tell others how it went…"></textarea>
+      </div>
+    `,
+    footer: `<button class="btn btn-secondary" data-modal-close>Cancel</button>
+             <button class="btn btn-primary" id="rate-submit">Submit</button>`,
+  });
+  let chosen = 5;
+  const els = m.el.querySelectorAll('#rate-stars span');
+  const paint = (v) => els.forEach(e => e.classList.toggle('active', parseInt(e.dataset.v) <= v));
+  paint(5);
+  els.forEach(el => {
+    el.addEventListener('mouseenter', () => paint(parseInt(el.dataset.v)));
+    el.addEventListener('click', () => { chosen = parseInt(el.dataset.v); paint(chosen); });
+  });
+  m.el.querySelector('[data-modal-close]').onclick = m.close;
+  m.el.querySelector('#rate-submit').onclick = async () => {
+    try {
+      await api('/ratings', { method: 'POST', body: { booking_id: bookingId, stars: chosen, review: m.el.querySelector('#rate-text').value || null } });
+      toast('Thanks for the review!', 'success');
+      m.close();
+    } catch (err) { toast(err.message, 'error'); }
+  };
+};
+
+/* -------------------------- PROFILE -------------------------- */
+async function renderProfile() {
+  const root = document.getElementById('tab-content');
+  root.innerHTML = `
+    <p class="eyebrow">Profile</p>
+    <h1 class="display mt-2 mb-6">Your details</h1>
+    <div class="card" style="max-width: 640px;">
+      <form id="profile-form">
+        <div class="field-row">
+          <div class="field">
+            <label class="label">Full name</label>
+            <input class="input" name="full_name" value="${escapeHtml(me.full_name || '')}" />
+          </div>
+          <div class="field">
+            <label class="label">Email</label>
+            <input class="input" type="email" name="email" value="${escapeHtml(me.email || '')}" />
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label class="label">Phone</label>
+            <input class="input" value="${escapeHtml(me.phone)}" disabled />
+          </div>
+          <div class="field">
+            <label class="label">Gender</label>
+            <select class="select" name="gender">
+              <option value="">—</option>
+              <option ${me.gender==='MALE'?'selected':''}>MALE</option>
+              <option ${me.gender==='FEMALE'?'selected':''}>FEMALE</option>
+              <option ${me.gender==='OTHER'?'selected':''}>OTHER</option>
+            </select>
+          </div>
+        </div>
+        <div class="field">
+          <label class="label">Address</label>
+          <textarea class="textarea" name="address">${escapeHtml(me.address || '')}</textarea>
+        </div>
+        <button class="btn btn-primary" type="submit">Save changes</button>
+      </form>
+    </div>
+  `;
+
+  document.getElementById('profile-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const body = {};
+    for (const [k, v] of fd.entries()) if (v) body[k] = v;
+    const btn = e.target.querySelector('button');
+    setLoading(btn, true);
+    try {
+      me = await api('/users/me', { method: 'PATCH', body });
+      toast('Profile updated', 'success');
+    } catch (err) { toast(err.message, 'error'); }
+    finally { setLoading(btn, false); }
+  });
+}
+
+/* -------------------------- DL -------------------------- */
+async function renderDL() {
+  const root = document.getElementById('tab-content');
+  root.innerHTML = `
+    <p class="eyebrow">Driving licence</p>
+    <h1 class="display mt-2 mb-6">Your DL</h1>
+    <div class="card" style="max-width: 640px;">
+      <p>Status: ${me.dl_verified ? '<span class="badge badge-success">Verified</span>' : '<span class="badge badge-warn">Pending</span>'}</p>
+
+      <div class="divider"></div>
+
+      <form id="dl-form">
+        <div class="field">
+          <label class="label">DL number</label>
+          <input class="input" name="dl_number" value="${escapeHtml(me.dl_number || '')}" required />
+        </div>
+        <button type="submit" class="btn btn-secondary">Save number</button>
+      </form>
+
+      <div class="divider"></div>
+
+      <form id="dl-img-form">
+        <div class="field">
+          <label class="label">DL image</label>
+          <input class="input" type="file" name="file" accept="image/*" required />
+          <p class="field-help">Front side of your driving licence. Max 10 MB.</p>
+        </div>
+        <button type="submit" class="btn btn-primary">Upload image</button>
+      </form>
+
+      ${me.dl_image ? `<div class="mt-6"><p class="text-xs muted mb-2">Uploaded image:</p><img src="${CONFIG.API_BASE}/${me.dl_image.replace(/^\/+/,'')}" style="max-width:300px; border-radius: var(--r-md);" /></div>` : ''}
+    </div>
+  `;
+
+  document.getElementById('dl-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    try {
+      me = await api('/users/me/dl', { method: 'POST', body: { dl_number: e.target.dl_number.value } });
+      toast('DL number saved — re-verification required', 'success');
+      renderDL();
+    } catch (err) { toast(err.message, 'error'); }
+  });
+
+  document.getElementById('dl-img-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    try {
+      me = await api('/users/me/dl-image', { method: 'POST', body: fd, isForm: true });
+      toast('DL image uploaded', 'success');
+      renderDL();
+    } catch (err) { toast(err.message, 'error'); }
+  });
+}
+
+init();
+</script>
+
+</body>
+</html>

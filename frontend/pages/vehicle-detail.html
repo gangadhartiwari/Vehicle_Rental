@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Vehicle — Roadway</title>
+  <link rel="stylesheet" href="../css/styles.css" />
+</head>
+<body>
+
+<div id="nav-host"></div>
+
+<section style="padding: 32px 0 80px;">
+  <div class="container">
+    <a href="browse.html" class="text-sm muted">← Back to browse</a>
+
+    <div id="content" style="margin-top: 16px;">
+      <p class="muted">Loading…</p>
+    </div>
+  </div>
+</section>
+
+<script src="../js/app.js"></script>
+<script>
+document.getElementById('nav-host').innerHTML = renderTopNav('browse');
+
+const vehicleId = qs('id');
+let currentVehicle = null;
+
+async function load() {
+  const root = document.getElementById('content');
+  try {
+    const v = await api(`/vehicles/${vehicleId}`);
+    currentVehicle = v;
+    const ratings = await api(`/ratings/vehicle/${vehicleId}`).catch(() => []);
+    root.innerHTML = render(v, ratings);
+    bindBookingForm();
+  } catch (err) {
+    root.innerHTML = `<div class="empty-state"><h3>Vehicle not found</h3><p>${escapeHtml(err.message)}</p></div>`;
+  }
+}
+
+function render(v, ratings) {
+  const images = (v.images || '').split(',').filter(s => s.trim());
+  const features = (v.features || '').split(',').filter(s => s.trim());
+  const mainImg = images[0] ? (images[0].startsWith('http') ? images[0] : `${CONFIG.API_BASE}/${images[0].replace(/^\/+/,'')}`) : null;
+
+  return `
+    <div class="grid" style="grid-template-columns: 1.4fr 1fr; gap: 40px; align-items: flex-start;">
+      <!-- LEFT: details -->
+      <div>
+        <div style="height: 380px; border-radius: var(--r-lg); overflow: hidden; background: linear-gradient(135deg,#2d3a30,#0d4f3c); display: grid; place-items: center; color: rgba(255,255,255,0.4); font-size: 7rem;">
+          ${mainImg ? `<img src="${mainImg}" style="width:100%;height:100%;object-fit:cover;" onerror="this.outerHTML='${vehicleIcon(v.vehicle_type)}'"/>` : vehicleIcon(v.vehicle_type)}
+        </div>
+
+        <div class="mt-6">
+          <p class="eyebrow">${v.vehicle_type}</p>
+          <div class="flex justify-between items-start mt-2">
+            <h1 class="display">${escapeHtml(v.brand)} ${escapeHtml(v.model)}</h1>
+            ${v.avg_rating > 0 ? `<div class="flex items-center gap-2">${starsHtml(v.avg_rating)} <span class="muted text-sm">${v.avg_rating}</span></div>` : ''}
+          </div>
+          <p class="muted mt-2">${v.year} · ${v.color || ''} · Reg. <span class="font-mono">${escapeHtml(v.registration_number)}</span></p>
+        </div>
+
+        <div class="grid grid-4 mt-6">
+          <div class="card-flat">
+            <p class="text-xs muted">Fuel</p>
+            <p class="font-semibold">${v.fuel_type}</p>
+          </div>
+          <div class="card-flat">
+            <p class="text-xs muted">Transmission</p>
+            <p class="font-semibold">${v.transmission}</p>
+          </div>
+          <div class="card-flat">
+            <p class="text-xs muted">Seats</p>
+            <p class="font-semibold">${v.seats}</p>
+          </div>
+          <div class="card-flat">
+            <p class="text-xs muted">Bookings</p>
+            <p class="font-semibold">${v.total_bookings || 0}</p>
+          </div>
+        </div>
+
+        ${v.description ? `<div class="mt-6"><h3>About this vehicle</h3><p class="muted mt-2">${escapeHtml(v.description)}</p></div>` : ''}
+
+        ${features.length ? `<div class="mt-6"><h3>Features</h3>
+          <div class="flex gap-2 mt-4" style="flex-wrap: wrap;">
+            ${features.map(f => `<span class="badge badge-neutral">${escapeHtml(f.trim())}</span>`).join('')}
+          </div></div>` : ''}
+
+        ${v.pickup_address ? `<div class="mt-6"><h3>Pickup location</h3>
+          <p class="muted mt-2">📍 ${escapeHtml(v.pickup_address)}${v.pickup_city ? ', ' + escapeHtml(v.pickup_city) : ''}</p></div>` : ''}
+
+        <div class="mt-8">
+          <h3>Reviews ${ratings.length ? `(${ratings.length})` : ''}</h3>
+          ${ratings.length ? ratings.map(r => `
+            <div class="card-flat mt-4">
+              <div class="flex justify-between items-center">
+                ${starsHtml(r.stars)}
+                <span class="text-xs muted">${timeAgo(r.created_at)}</span>
+              </div>
+              ${r.review ? `<p class="mt-2 text-sm">${escapeHtml(r.review)}</p>` : ''}
+            </div>
+          `).join('') : '<p class="muted mt-2 text-sm">No reviews yet.</p>'}
+        </div>
+      </div>
+
+      <!-- RIGHT: booking widget -->
+      <aside style="position: sticky; top: 88px;">
+        <div class="card">
+          <div class="flex items-baseline gap-2">
+            <span class="display" style="font-size: 2.2rem; font-weight: 600; color: var(--accent);">${fmtMoney(v.hourly_rate)}</span>
+            <span class="muted text-sm">/hour</span>
+          </div>
+          <p class="text-sm muted mt-2">Day rate ${fmtMoney(v.daily_rate)} · Deposit ${fmtMoney(v.security_deposit)}</p>
+
+          <div class="divider"></div>
+
+          <form id="book-form">
+            <div class="field">
+              <label class="label">Pickup</label>
+              <input class="input" type="datetime-local" name="pickup_at" required />
+            </div>
+            <div class="field">
+              <label class="label">Drop-off</label>
+              <input class="input" type="datetime-local" name="dropoff_at" required />
+            </div>
+            <div class="field">
+              <label class="label">Notes (optional)</label>
+              <textarea class="textarea" name="notes" placeholder="Any special requests?"></textarea>
+            </div>
+
+            <button type="button" id="estimate-btn" class="btn btn-secondary btn-block">Estimate fare</button>
+
+            <div id="estimate-box" class="card-flat mt-4 hidden">
+              <h4>Estimate</h4>
+              <div class="flex justify-between mt-2 text-sm"><span class="muted">Duration</span><span id="e-duration">—</span></div>
+              <div class="flex justify-between text-sm"><span class="muted">Base</span><span id="e-base">—</span></div>
+              <div class="flex justify-between text-sm"><span class="muted">GST</span><span id="e-tax">—</span></div>
+              <div class="flex justify-between text-sm"><span class="muted">Deposit</span><span id="e-deposit">—</span></div>
+              <div class="divider" style="margin: 12px 0;"></div>
+              <div class="flex justify-between"><strong>Total payable</strong><strong id="e-total">—</strong></div>
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-block btn-lg mt-4">Book now</button>
+          </form>
+          <p class="text-xs muted text-center mt-4">You'll be redirected to your dashboard for payment.</p>
+        </div>
+      </aside>
+    </div>
+  `;
+}
+
+function bindBookingForm() {
+  const form = document.getElementById('book-form');
+  const estimateBtn = document.getElementById('estimate-btn');
+
+  estimateBtn.addEventListener('click', async () => {
+    const fd = new FormData(form);
+    const pickup = fd.get('pickup_at');
+    const dropoff = fd.get('dropoff_at');
+    if (!pickup || !dropoff) { toast('Pick both pickup and drop-off times', 'error'); return; }
+    setLoading(estimateBtn, true);
+    try {
+      const est = await api('/bookings/estimate', { method: 'POST', body: {
+        vehicle_id: parseInt(vehicleId),
+        pickup_at: new Date(pickup).toISOString(),
+        dropoff_at: new Date(dropoff).toISOString(),
+      }});
+      const box = document.getElementById('estimate-box');
+      box.classList.remove('hidden');
+      document.getElementById('e-duration').textContent = `${est.duration_hours?.toFixed(1) || '—'} hrs`;
+      document.getElementById('e-base').textContent = fmtMoney(est.base_amount);
+      document.getElementById('e-tax').textContent = fmtMoney(est.tax_amount);
+      document.getElementById('e-deposit').textContent = fmtMoney(est.security_deposit);
+      document.getElementById('e-total').textContent = fmtMoney(est.total_amount);
+    } catch (err) {
+      toast(err.message, 'error');
+    } finally {
+      setLoading(estimateBtn, false);
+    }
+  });
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!Auth.isLoggedIn() || Auth.role !== 'user') {
+      toast('Please sign in as a rider to book', 'info');
+      setTimeout(() => location.href = `login.html?role=user&next=${encodeURIComponent(location.href)}`, 700);
+      return;
+    }
+    const fd = new FormData(form);
+    const btn = e.target.querySelector('button[type=submit]');
+    setLoading(btn, true);
+    try {
+      const booking = await api('/bookings', { method: 'POST', body: {
+        vehicle_id: parseInt(vehicleId),
+        pickup_at: new Date(fd.get('pickup_at')).toISOString(),
+        dropoff_at: new Date(fd.get('dropoff_at')).toISOString(),
+        pickup_location: currentVehicle.pickup_address || '',
+        dropoff_location: currentVehicle.pickup_address || '',
+        notes: fd.get('notes') || null,
+      }});
+      toast('Booking created — finishing up…', 'success');
+      setTimeout(() => location.href = `user-dashboard.html?tab=bookings&new=${booking.id}`, 700);
+    } catch (err) {
+      toast(err.message, 'error');
+    } finally {
+      setLoading(btn, false);
+    }
+  });
+}
+
+if (!vehicleId) {
+  document.getElementById('content').innerHTML = '<p class="muted">No vehicle specified.</p>';
+} else {
+  load();
+}
+</script>
+
+</body>
+</html>

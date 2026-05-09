@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Dashboard — Roadway</title>
+  <link rel="stylesheet" href="../css/styles.css" />
+</head>
+<body>
+
+<div class="app-shell">
+  <aside class="sidebar">
+    <a href="../index.html" class="brand">
+      <span class="brand-mark">R</span>
+      <span>Roadway</span>
+    </a>
+    <p class="side-section">Admin</p>
+    <ul class="side-nav">
+      <li><a href="#" class="active" data-tab="overview">Overview</a></li>
+      <li><a href="#" data-tab="users">Users</a></li>
+      <li><a href="#" data-tab="partners">Partners / KYC</a></li>
+      <li><a href="#" data-tab="vehicles">Vehicles</a></li>
+      <li><a href="#" data-tab="bookings">Bookings</a></li>
+      <li><a href="#" data-tab="ratings">Ratings</a></li>
+    </ul>
+    <p class="side-section">Account</p>
+    <ul class="side-nav">
+      <li><a href="#" onclick="logout(); return false;">Sign out</a></li>
+    </ul>
+  </aside>
+
+  <main class="app-main">
+    <div id="tab-content"><p class="muted">Loading…</p></div>
+  </main>
+</div>
+
+<script src="../js/app.js"></script>
+<script>
+Auth.redirectIfNotRole('admin', '../pages/login.html?role=admin');
+
+const tabs = {
+  overview: renderOverview,
+  users: renderUsers,
+  partners: renderPartners,
+  vehicles: renderVehicles,
+  bookings: renderBookings,
+  ratings: renderRatings,
+};
+
+document.querySelectorAll('[data-tab]').forEach(a => {
+  a.addEventListener('click', e => {
+    e.preventDefault();
+    document.querySelectorAll('[data-tab]').forEach(x => x.classList.remove('active'));
+    a.classList.add('active');
+    tabs[a.dataset.tab]();
+  });
+});
+
+/* -------------------------- OVERVIEW -------------------------- */
+async function renderOverview() {
+  const root = document.getElementById('tab-content');
+  root.innerHTML = '<p class="muted">Loading…</p>';
+  try {
+    const s = await api('/admin/stats');
+    root.innerHTML = `
+      <p class="eyebrow">Operations</p>
+      <h1 class="display mt-2 mb-2">Platform overview</h1>
+      <p class="muted mb-8 text-sm">As of ${fmtDate(s.as_of)}</p>
+
+      <div class="grid grid-4 mb-8">
+        <div class="stat-tile">
+          <div class="label">Revenue · 30d</div>
+          <div class="value">${fmtMoney(s.revenue.last_30d_gross)}</div>
+          <div class="delta">${s.bookings.last_30d} bookings</div>
+        </div>
+        <div class="stat-tile">
+          <div class="label">Active trips</div>
+          <div class="value">${s.bookings.ongoing}</div>
+          <div class="delta">of ${s.bookings.total} total</div>
+        </div>
+        <div class="stat-tile">
+          <div class="label">Vehicles available</div>
+          <div class="value">${s.vehicles.available}</div>
+          <div class="delta">${s.vehicles.booked} booked · ${s.vehicles.verified} verified</div>
+        </div>
+        <div class="stat-tile">
+          <div class="label">KYC pending</div>
+          <div class="value" style="color: var(--warn);">${s.partners.kyc_pending}</div>
+          <div class="delta">${s.partners.kyc_approved} approved</div>
+        </div>
+      </div>
+
+      <div class="grid grid-3">
+        <div class="card">
+          <h3 class="mb-4">Users</h3>
+          <div class="flex justify-between"><span class="muted text-sm">Total</span><strong>${s.users.total}</strong></div>
+          <div class="flex justify-between mt-2"><span class="muted text-sm">Active</span><strong>${s.users.active}</strong></div>
+          <div class="flex justify-between mt-2"><span class="muted text-sm">Blocked</span><strong>${s.users.blocked}</strong></div>
+        </div>
+        <div class="card">
+          <h3 class="mb-4">Partners</h3>
+          <div class="flex justify-between"><span class="muted text-sm">Total</span><strong>${s.partners.total}</strong></div>
+          <div class="flex justify-between mt-2"><span class="muted text-sm">KYC pending</span><strong>${s.partners.kyc_pending}</strong></div>
+          <div class="flex justify-between mt-2"><span class="muted text-sm">KYC approved</span><strong>${s.partners.kyc_approved}</strong></div>
+        </div>
+        <div class="card">
+          <h3 class="mb-4">Bookings</h3>
+          <div class="flex justify-between"><span class="muted text-sm">Total</span><strong>${s.bookings.total}</strong></div>
+          <div class="flex justify-between mt-2"><span class="muted text-sm">Completed</span><strong>${s.bookings.completed}</strong></div>
+          <div class="flex justify-between mt-2"><span class="muted text-sm">Cancelled</span><strong>${s.bookings.cancelled}</strong></div>
+        </div>
+      </div>
+    `;
+  } catch (err) {
+    root.innerHTML = `<p class="muted">${escapeHtml(err.message)}</p>`;
+  }
+}
+
+/* -------------------------- USERS -------------------------- */
+async function renderUsers() {
+  const root = document.getElementById('tab-content');
+  root.innerHTML = '<p class="muted">Loading…</p>';
+  try {
+    const list = await api('/admin/users');
+    root.innerHTML = `
+      <p class="eyebrow">Users</p>
+      <h1 class="display mt-2 mb-6">All users</h1>
+      <div class="table-wrap">
+        <table class="table">
+          <thead><tr><th>Phone</th><th>Name</th><th>Email</th><th>DL</th><th>Status</th><th>Joined</th><th></th></tr></thead>
+          <tbody>
+            ${list.map(u => `
+              <tr>
+                <td class="font-mono">${escapeHtml(u.phone)}</td>
+                <td>${escapeHtml(u.full_name || '—')}</td>
+                <td>${escapeHtml(u.email || '—')}</td>
+                <td>${u.dl_verified ? '<span class="badge badge-success">Verified</span>' : (u.dl_number ? '<span class="badge badge-warn">Pending</span>' : '<span class="badge badge-neutral">None</span>')}</td>
+                <td>${u.is_blocked ? '<span class="badge badge-danger">Blocked</span>' : '<span class="badge badge-success">Active</span>'}</td>
+                <td class="text-xs muted">${timeAgo(u.created_at)}</td>
+                <td>
+                  ${!u.dl_verified && u.dl_number ? `<button class="btn btn-secondary btn-sm" onclick="verifyDL(${u.id})">Verify DL</button>` : ''}
+                  ${u.is_blocked
+                    ? `<button class="btn btn-secondary btn-sm" onclick="unblockUser(${u.id})">Unblock</button>`
+                    : `<button class="btn btn-ghost btn-sm" onclick="blockUser(${u.id})">Block</button>`}
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  } catch (err) {
+    root.innerHTML = `<p class="muted">${escapeHtml(err.message)}</p>`;
+  }
+}
+
+window.blockUser = async function(id) {
+  if (!await confirmModal('Block this user?', { danger: true })) return;
+  try { await api(`/admin/users/${id}/block`, { method: 'POST' }); toast('Blocked'); renderUsers(); }
+  catch (err) { toast(err.message, 'error'); }
+};
+window.unblockUser = async function(id) {
+  try { await api(`/admin/users/${id}/unblock`, { method: 'POST' }); toast('Unblocked', 'success'); renderUsers(); }
+  catch (err) { toast(err.message, 'error'); }
+};
+window.verifyDL = async function(id) {
+  try { await api(`/admin/users/${id}/verify-dl`, { method: 'POST' }); toast('DL verified', 'success'); renderUsers(); }
+  catch (err) { toast(err.message, 'error'); }
+};
+
+/* -------------------------- PARTNERS / KYC -------------------------- */
+async function renderPartners() {
+  const root = document.getElementById('tab-content');
+  root.innerHTML = '<p class="muted">Loading…</p>';
+  try {
+    const list = await api('/admin/partners');
+    const pending = list.filter(p => p.kyc_status === 'SUBMITTED');
+    root.innerHTML = `
+      <p class="eyebrow">Partners</p>
+      <h1 class="display mt-2 mb-2">KYC & accounts</h1>
+      <p class="muted mb-6 text-sm">${pending.length} awaiting review</p>
+
+      <div class="table-wrap">
+        <table class="table">
+          <thead><tr><th>Phone</th><th>Business</th><th>Email</th><th>KYC</th><th>Status</th><th>Joined</th><th>Actions</th></tr></thead>
+          <tbody>
+            ${list.map(p => `
+              <tr>
+                <td class="font-mono">${escapeHtml(p.phone)}</td>
+                <td>${escapeHtml(p.business_name || p.full_name || '—')}</td>
+                <td>${escapeHtml(p.email || '—')}</td>
+                <td>${kycBadge(p.kyc_status)}</td>
+                <td>${p.is_blocked ? '<span class="badge badge-danger">Blocked</span>' : '<span class="badge badge-success">Active</span>'}</td>
+                <td class="text-xs muted">${timeAgo(p.created_at)}</td>
+                <td>
+                  <button class="btn btn-secondary btn-sm" onclick="reviewPartner(${p.id})">View / Review</button>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  } catch (err) {
+    root.innerHTML = `<p class="muted">${escapeHtml(err.message)}</p>`;
+  }
+}
+
+function kycBadge(s) {
+  const map = { PENDING: 'neutral', SUBMITTED: 'info', APPROVED: 'success', REJECTED: 'danger' };
+  return `<span class="badge badge-${map[s] || 'neutral'}">${s}</span>`;
+}
+
+window.reviewPartner = async function(id) {
+  try {
+    const p = await api(`/admin/partners/${id}`);
+    const docsHtml = (p.documents || []).map(d => `
+      <div class="card-flat">
+        <div class="flex justify-between items-start">
+          <div>
+            <strong>${d.doc_type}</strong>
+            <p class="text-xs muted">${d.doc_number || '—'}</p>
+          </div>
+          ${d.is_verified ? '<span class="badge badge-success">Verified</span>' : '<span class="badge badge-warn">Pending</span>'}
+        </div>
+        <a href="${CONFIG.API_BASE}/${d.file_url.replace(/^\/+/,'')}" target="_blank" class="btn btn-secondary btn-sm mt-2">View file</a>
+      </div>`).join('');
+
+    const m = modal({
+      title: `Partner: ${escapeHtml(p.business_name || p.full_name || p.phone)}`,
+      body: `
+        <div class="grid grid-2 mb-4">
+          <div><p class="text-xs muted">Phone</p><p class="font-mono">${escapeHtml(p.phone)}</p></div>
+          <div><p class="text-xs muted">KYC</p><p>${kycBadge(p.kyc_status)}</p></div>
+          <div><p class="text-xs muted">Email</p><p>${escapeHtml(p.email || '—')}</p></div>
+          <div><p class="text-xs muted">GST</p><p>${escapeHtml(p.gst_number || '—')}</p></div>
+          <div><p class="text-xs muted">City</p><p>${escapeHtml(p.city || '—')}</p></div>
+          <div><p class="text-xs muted">Bank</p><p class="font-mono text-xs">${escapeHtml(p.bank_account_number || '—')}</p></div>
+        </div>
+        <h4 class="mb-2">Documents</h4>
+        <div class="grid grid-2">${docsHtml || '<p class="muted text-sm">None</p>'}</div>
+        <div class="field mt-4">
+          <label class="label">Remarks</label>
+          <textarea class="textarea" id="kyc-remarks" placeholder="Notes for the partner…">${escapeHtml(p.kyc_remarks || '')}</textarea>
+        </div>
+      `,
+      footer: `
+        <button class="btn btn-danger" id="kyc-reject">Reject</button>
+        <button class="btn btn-primary" id="kyc-approve">Approve</button>
+        ${p.is_blocked
+          ? `<button class="btn btn-secondary" id="unblock-p">Unblock</button>`
+          : `<button class="btn btn-ghost" id="block-p">Block</button>`}
+      `,
+    });
+    const review = async (status) => {
+      try {
+        await api(`/admin/partners/${id}/kyc/review`, { method: 'POST', body: { status, remarks: m.el.querySelector('#kyc-remarks').value || null } });
+        toast(`KYC ${status.toLowerCase()}`, 'success');
+        m.close();
+        renderPartners();
+      } catch (err) { toast(err.message, 'error'); }
+    };
+    m.el.querySelector('#kyc-approve').onclick = () => review('APPROVED');
+    m.el.querySelector('#kyc-reject').onclick = () => review('REJECTED');
+    if (p.is_blocked) {
+      m.el.querySelector('#unblock-p').onclick = async () => {
+        try { await api(`/admin/partners/${id}/unblock`, { method: 'POST' }); toast('Unblocked'); m.close(); renderPartners(); }
+        catch (err) { toast(err.message, 'error'); }
+      };
+    } else {
+      m.el.querySelector('#block-p').onclick = async () => {
+        if (!await confirmModal('Block this partner?', { danger: true })) return;
+        try { await api(`/admin/partners/${id}/block`, { method: 'POST' }); toast('Blocked'); m.close(); renderPartners(); }
+        catch (err) { toast(err.message, 'error'); }
+      };
+    }
+  } catch (err) { toast(err.message, 'error'); }
+};
+
+/* -------------------------- VEHICLES -------------------------- */
+async function renderVehicles() {
+  const root = document.getElementById('tab-content');
+  root.innerHTML = '<p class="muted">Loading…</p>';
+  try {
+    const list = await api('/admin/vehicles');
+    root.innerHTML = `
+      <p class="eyebrow">Vehicles</p>
+      <h1 class="display mt-2 mb-6">All vehicles</h1>
+      <div class="table-wrap">
+        <table class="table">
+          <thead><tr><th>Reg #</th><th>Vehicle</th><th>Type</th><th>Hourly</th><th>Status</th><th>Verified</th><th>Actions</th></tr></thead>
+          <tbody>
+            ${list.map(v => `
+              <tr>
+                <td class="font-mono">${escapeHtml(v.registration_number)}</td>
+                <td>${escapeHtml(v.brand)} ${escapeHtml(v.model)}</td>
+                <td><span class="badge badge-neutral">${v.vehicle_type}</span></td>
+                <td>${fmtMoney(v.hourly_rate)}</td>
+                <td>${statusBadge(v.status)}</td>
+                <td>${v.is_verified ? '<span class="badge badge-success">Yes</span>' : '<span class="badge badge-warn">No</span>'}</td>
+                <td>${v.is_verified
+                  ? `<button class="btn btn-ghost btn-sm" onclick="unverifyVehicle(${v.id})">Unverify</button>`
+                  : `<button class="btn btn-primary btn-sm" onclick="verifyVehicle(${v.id})">Verify</button>`}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  } catch (err) {
+    root.innerHTML = `<p class="muted">${escapeHtml(err.message)}</p>`;
+  }
+}
+
+window.verifyVehicle = async function(id) {
+  try { await api(`/admin/vehicles/${id}/verify`, { method: 'POST' }); toast('Verified', 'success'); renderVehicles(); }
+  catch (err) { toast(err.message, 'error'); }
+};
+window.unverifyVehicle = async function(id) {
+  if (!await confirmModal('Unverify this vehicle?', { danger: true })) return;
+  try { await api(`/admin/vehicles/${id}/unverify`, { method: 'POST' }); toast('Unverified'); renderVehicles(); }
+  catch (err) { toast(err.message, 'error'); }
+};
+
+/* -------------------------- BOOKINGS -------------------------- */
+async function renderBookings() {
+  const root = document.getElementById('tab-content');
+  root.innerHTML = '<p class="muted">Loading…</p>';
+  try {
+    const list = await api('/admin/bookings');
+    root.innerHTML = `
+      <p class="eyebrow">Bookings</p>
+      <h1 class="display mt-2 mb-6">All bookings</h1>
+      <div class="table-wrap">
+        <table class="table">
+          <thead><tr><th>Code</th><th>User</th><th>Vehicle</th><th>Pickup</th><th>Status</th><th>Payment</th><th>Total</th><th></th></tr></thead>
+          <tbody>
+            ${list.map(b => `
+              <tr>
+                <td class="font-mono text-xs">${escapeHtml(b.booking_code)}</td>
+                <td>#${b.user_id}</td>
+                <td>#${b.vehicle_id}</td>
+                <td class="text-xs">${fmtDate(b.pickup_at)}</td>
+                <td>${statusBadge(b.status)}</td>
+                <td>${statusBadge(b.payment_status)}</td>
+                <td>${fmtMoney(b.total_amount)}</td>
+                <td>${['CONFIRMED','PENDING_PAYMENT','ONGOING'].includes(b.status) ? `<button class="btn btn-ghost btn-sm" onclick="forceCancel(${b.id})">Cancel</button>` : ''}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  } catch (err) {
+    root.innerHTML = `<p class="muted">${escapeHtml(err.message)}</p>`;
+  }
+}
+
+window.forceCancel = async function(id) {
+  if (!await confirmModal('Force cancel this booking?', { danger: true })) return;
+  try {
+    await api(`/admin/bookings/${id}/force-cancel`, { method: 'POST', query: { reason: 'Cancelled by admin' } });
+    toast('Cancelled', 'success');
+    renderBookings();
+  } catch (err) { toast(err.message, 'error'); }
+};
+
+/* -------------------------- RATINGS -------------------------- */
+async function renderRatings() {
+  const root = document.getElementById('tab-content');
+  root.innerHTML = '<p class="muted">Loading…</p>';
+  try {
+    const list = await api('/admin/ratings');
+    root.innerHTML = `
+      <p class="eyebrow">Ratings</p>
+      <h1 class="display mt-2 mb-6">Reviews · moderation</h1>
+      ${list.length ? `<div class="grid grid-2">
+        ${list.map(r => `
+          <div class="card">
+            <div class="flex justify-between items-start">
+              <div>${starsHtml(r.stars)}</div>
+              <span class="text-xs muted">${timeAgo(r.created_at)}</span>
+            </div>
+            <p class="mt-2 text-sm">${r.review ? escapeHtml(r.review) : '<em class="muted">No comment</em>'}</p>
+            <p class="mt-3 text-xs muted">User #${r.user_id} · Vehicle #${r.vehicle_id}</p>
+            <div class="mt-3"><button class="btn btn-ghost btn-sm" onclick="deleteRating(${r.id})">Delete</button></div>
+          </div>
+        `).join('')}
+      </div>` : '<div class="empty-state"><p>No ratings yet.</p></div>'}
+    `;
+  } catch (err) {
+    root.innerHTML = `<p class="muted">${escapeHtml(err.message)}</p>`;
+  }
+}
+
+window.deleteRating = async function(id) {
+  if (!await confirmModal('Delete this rating?', { danger: true })) return;
+  try { await api(`/admin/ratings/${id}`, { method: 'DELETE' }); toast('Deleted', 'success'); renderRatings(); }
+  catch (err) { toast(err.message, 'error'); }
+};
+
+renderOverview();
+</script>
+
+</body>
+</html>

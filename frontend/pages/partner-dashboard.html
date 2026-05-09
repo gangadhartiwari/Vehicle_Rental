@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Partner Dashboard — Roadway</title>
+  <link rel="stylesheet" href="../css/styles.css" />
+</head>
+<body>
+
+<div class="app-shell">
+  <aside class="sidebar">
+    <a href="../index.html" class="brand">
+      <span class="brand-mark">R</span>
+      <span>Roadway</span>
+    </a>
+    <p class="side-section">Partner</p>
+    <ul class="side-nav">
+      <li><a href="#" class="active" data-tab="overview">Overview</a></li>
+      <li><a href="#" data-tab="vehicles">My vehicles</a></li>
+      <li><a href="#" data-tab="bookings">Bookings</a></li>
+      <li><a href="#" data-tab="kyc">KYC</a></li>
+      <li><a href="#" data-tab="profile">Profile</a></li>
+    </ul>
+    <p class="side-section">Account</p>
+    <ul class="side-nav">
+      <li><a href="#" onclick="logout(); return false;">Sign out</a></li>
+    </ul>
+  </aside>
+
+  <main class="app-main">
+    <div id="tab-content"><p class="muted">Loading…</p></div>
+  </main>
+</div>
+
+<script src="../js/app.js"></script>
+<script>
+Auth.redirectIfNotRole('partner', '../pages/login.html?role=partner');
+
+let me = null;
+
+const tabs = {
+  overview: renderOverview,
+  vehicles: renderVehicles,
+  bookings: renderBookings,
+  kyc: renderKYC,
+  profile: renderProfile,
+};
+
+document.querySelectorAll('[data-tab]').forEach(a => {
+  a.addEventListener('click', e => {
+    e.preventDefault();
+    document.querySelectorAll('[data-tab]').forEach(x => x.classList.remove('active'));
+    a.classList.add('active');
+    tabs[a.dataset.tab]();
+  });
+});
+
+async function init() {
+  try {
+    me = await api('/partners/me');
+    tabs.overview();
+  } catch (err) {
+    document.getElementById('tab-content').innerHTML = `<p class="muted">${escapeHtml(err.message)}</p>`;
+  }
+}
+
+/* -------------------------- OVERVIEW -------------------------- */
+async function renderOverview() {
+  const root = document.getElementById('tab-content');
+  root.innerHTML = '<p class="muted">Loading…</p>';
+  try {
+    const [vehicles, bookings] = await Promise.all([
+      api('/partners/me/vehicles'),
+      api('/partners/me/bookings'),
+    ]);
+    const active = bookings.filter(b => ['CONFIRMED','ONGOING'].includes(b.status));
+    const completed = bookings.filter(b => b.status === 'COMPLETED');
+    const revenue = completed.reduce((s, b) => s + (b.base_amount || 0), 0);
+
+    root.innerHTML = `
+      <div class="flex justify-between items-start mb-6" style="flex-wrap: wrap; gap: 12px;">
+        <div>
+          <p class="eyebrow">Welcome back</p>
+          <h1 class="display mt-2">${escapeHtml(me.business_name || me.full_name || me.phone)}</h1>
+          <div class="flex gap-2 mt-2">
+            ${kycBadge(me.kyc_status)}
+            ${me.is_blocked ? '<span class="badge badge-danger">Blocked</span>' : ''}
+          </div>
+        </div>
+        <div class="flex gap-2">
+          ${me.kyc_status === 'APPROVED' ? `<button class="btn btn-primary" onclick="document.querySelector('[data-tab=vehicles]').click(); setTimeout(openAddVehicle, 100)">+ Add vehicle</button>` : `<a href="#" data-tab="kyc" onclick="document.querySelector('[data-tab=kyc]').click(); return false;" class="btn btn-secondary">Complete KYC →</a>`}
+        </div>
+      </div>
+
+      ${me.kyc_status !== 'APPROVED' ? `
+        <div class="card mb-6" style="border-color: var(--warn); background: var(--warn-soft);">
+          <h3>Action required</h3>
+          <p class="muted mt-2 text-sm">You need to complete KYC verification before listing vehicles.</p>
+          <button class="btn btn-primary mt-4" onclick="document.querySelector('[data-tab=kyc]').click()">Complete KYC →</button>
+        </div>` : ''}
+
+      <div class="grid grid-4 mb-8">
+        <div class="stat-tile"><div class="label">Vehicles</div><div class="value">${vehicles.length}</div></div>
+        <div class="stat-tile"><div class="label">Active trips</div><div class="value">${active.length}</div></div>
+        <div class="stat-tile"><div class="label">Total bookings</div><div class="value">${bookings.length}</div></div>
+        <div class="stat-tile"><div class="label">Revenue</div><div class="value">${fmtMoney(revenue)}</div></div>
+      </div>
+
+      <h2 class="mb-4">Recent bookings</h2>
+      ${bookings.length ? renderPartnerBookingTable(bookings.slice(0, 5)) : '<div class="empty-state"><p>No bookings yet.</p></div>'}
+    `;
+  } catch (err) {
+    root.innerHTML = `<p class="muted">${escapeHtml(err.message)}</p>`;
+  }
+}
+
+function kycBadge(s) {
+  const map = { PENDING: 'neutral', SUBMITTED: 'info', APPROVED: 'success', REJECTED: 'danger' };
+  return `<span class="badge badge-${map[s] || 'neutral'}">KYC: ${s.toLowerCase()}</span>`;
+}
+
+/* -------------------------- VEHICLES -------------------------- */
+async function renderVehicles() {
+  const root = document.getElementById('tab-content');
+  root.innerHTML = '<p class="muted">Loading…</p>';
+  try {
+    const list = await api('/partners/me/vehicles');
+    root.innerHTML = `
+      <div class="flex justify-between items-center mb-6">
+        <div>
+          <p class="eyebrow">Fleet</p>
+          <h1 class="display mt-2">My vehicles</h1>
+        </div>
+        <button class="btn btn-primary" onclick="openAddVehicle()" ${me.kyc_status !== 'APPROVED' ? 'disabled title="Complete KYC first"' : ''}>+ Add vehicle</button>
+      </div>
+      ${list.length ? `<div class="grid grid-3">${list.map(vehicleCard).join('')}</div>` : '<div class="empty-state"><h3>No vehicles yet</h3><p>Add your first vehicle to start receiving bookings.</p></div>'}
+    `;
+  } catch (err) {
+    root.innerHTML = `<p class="muted">${escapeHtml(err.message)}</p>`;
+  }
+}
+
+function vehicleCard(v) {
+  const img = vehicleImageUrl(v);
+  return `
+    <div class="card card-hover">
+      <div style="height: 160px; border-radius: var(--r-md); overflow: hidden; background: linear-gradient(135deg,#2d3a30,#0d4f3c); display: grid; place-items: center; color: rgba(255,255,255,0.4); font-size: 4rem; margin-bottom: 14px;">
+        ${img ? `<img src="${img}" style="width:100%;height:100%;object-fit:cover;"/>` : vehicleIcon(v.vehicle_type)}
+      </div>
+      <div class="flex justify-between items-start">
+        <div>
+          <h4>${escapeHtml(v.brand)} ${escapeHtml(v.model)}</h4>
+          <p class="text-xs muted">${v.year} · <span class="font-mono">${escapeHtml(v.registration_number)}</span></p>
+        </div>
+        ${statusBadge(v.status)}
+      </div>
+      <div class="flex justify-between mt-4">
+        <div class="text-sm"><span class="muted">${fmtMoney(v.hourly_rate)}/hr</span></div>
+        ${v.is_verified ? '<span class="badge badge-success">Verified</span>' : '<span class="badge badge-warn">Unverified</span>'}
+      </div>
+      <div class="flex gap-2 mt-4">
+        <button class="btn btn-secondary btn-sm" onclick="editVehicle(${v.id})">Edit</button>
+        <button class="btn btn-secondary btn-sm" onclick="uploadVehicleAsset(${v.id}, 'images')">+ Image</button>
+        <button class="btn btn-ghost btn-sm" onclick="deleteVehicle(${v.id})">Delete</button>
+      </div>
+    </div>
+  `;
+}
+
+window.openAddVehicle = function() {
+  const m = modal({
+    title: 'Add a vehicle',
+    body: vehicleFormHtml(),
+    footer: `<button class="btn btn-secondary" data-modal-close>Cancel</button>
+             <button class="btn btn-primary" id="vsubmit">Create</button>`,
+  });
+  m.el.querySelector('[data-modal-close]').onclick = m.close;
+  m.el.querySelector('#vsubmit').onclick = async () => {
+    const body = collectVehicleForm(m.el);
+    if (!body) return;
+    try {
+      await api('/partners/me/vehicles', { method: 'POST', body });
+      toast('Vehicle created', 'success');
+      m.close();
+      renderVehicles();
+    } catch (err) { toast(err.message, 'error'); }
+  };
+};
+
+window.editVehicle = async function(id) {
+  try {
+    const v = await api(`/partners/me/vehicles/${id}`);
+    const m = modal({
+      title: `Edit vehicle`,
+      body: vehicleFormHtml(v),
+      footer: `<button class="btn btn-secondary" data-modal-close>Cancel</button>
+               <button class="btn btn-primary" id="vsubmit">Save</button>`,
+    });
+    m.el.querySelector('[data-modal-close]').onclick = m.close;
+    m.el.querySelector('#vsubmit').onclick = async () => {
+      const body = collectVehicleForm(m.el, true);
+      if (!body) return;
+      try {
+        await api(`/partners/me/vehicles/${id}`, { method: 'PATCH', body });
+        toast('Saved', 'success');
+        m.close();
+        renderVehicles();
+      } catch (err) { toast(err.message, 'error'); }
+    };
+  } catch (err) { toast(err.message, 'error'); }
+};
+
+window.deleteVehicle = async function(id) {
+  if (!await confirmModal('Delete this vehicle?', { danger: true, confirmText: 'Delete' })) return;
+  try {
+    await api(`/partners/me/vehicles/${id}`, { method: 'DELETE' });
+    toast('Deleted', 'success');
+    renderVehicles();
+  } catch (err) { toast(err.message, 'error'); }
+};
+
+window.uploadVehicleAsset = function(id, kind) {
+  const inp = document.createElement('input');
+  inp.type = 'file';
+  inp.accept = 'image/*';
+  inp.onchange = async () => {
+    if (!inp.files[0]) return;
+    const fd = new FormData();
+    fd.append('file', inp.files[0]);
+    try {
+      await api(`/partners/me/vehicles/${id}/images`, { method: 'POST', body: fd, isForm: true });
+      toast('Image uploaded', 'success');
+      renderVehicles();
+    } catch (err) { toast(err.message, 'error'); }
+  };
+  inp.click();
+};
+
+function vehicleFormHtml(v = {}) {
+  return `
+    <div class="field-row">
+      <div class="field">
+        <label class="label">Type</label>
+        <select class="select" name="vehicle_type">
+          <option value="BIKE" ${v.vehicle_type==='BIKE'?'selected':''}>Bike</option>
+          <option value="CAR" ${v.vehicle_type==='CAR'?'selected':''}>Car</option>
+          <option value="AUTO" ${v.vehicle_type==='AUTO'?'selected':''}>Auto</option>
+        </select>
+      </div>
+      <div class="field">
+        <label class="label">Year</label>
+        <input class="input" type="number" name="year" min="1990" max="2030" value="${v.year || 2022}" />
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label class="label">Brand</label><input class="input" name="brand" value="${escapeHtml(v.brand || '')}" required /></div>
+      <div class="field"><label class="label">Model</label><input class="input" name="model" value="${escapeHtml(v.model || '')}" required /></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label class="label">Registration #</label><input class="input" name="registration_number" value="${escapeHtml(v.registration_number || '')}" ${v.id ? 'disabled' : 'required'} /></div>
+      <div class="field"><label class="label">Color</label><input class="input" name="color" value="${escapeHtml(v.color || '')}" /></div>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label class="label">Fuel</label>
+        <select class="select" name="fuel_type">
+          ${['PETROL','DIESEL','ELECTRIC','CNG'].map(f => `<option ${v.fuel_type===f?'selected':''}>${f}</option>`).join('')}
+        </select>
+      </div>
+      <div class="field">
+        <label class="label">Transmission</label>
+        <select class="select" name="transmission">
+          ${['MANUAL','AUTOMATIC'].map(t => `<option ${v.transmission===t?'selected':''}>${t}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label class="label">Seats</label><input class="input" type="number" name="seats" min="1" max="20" value="${v.seats || 2}" /></div>
+      <div class="field"><label class="label">Hourly ₹</label><input class="input" type="number" name="hourly_rate" min="0" step="0.01" value="${v.hourly_rate || 40}" required /></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label class="label">Daily ₹</label><input class="input" type="number" name="daily_rate" min="0" step="0.01" value="${v.daily_rate || 800}" required /></div>
+      <div class="field"><label class="label">Deposit ₹</label><input class="input" type="number" name="security_deposit" min="0" step="0.01" value="${v.security_deposit || 2000}" /></div>
+    </div>
+    <div class="field"><label class="label">Pickup city</label><input class="input" name="pickup_city" value="${escapeHtml(v.pickup_city || '')}" /></div>
+    <div class="field"><label class="label">Pickup address</label><input class="input" name="pickup_address" value="${escapeHtml(v.pickup_address || '')}" /></div>
+    <div class="field-row">
+      <div class="field"><label class="label">Pickup lat</label><input class="input" type="number" step="any" name="pickup_lat" value="${v.pickup_lat || ''}" /></div>
+      <div class="field"><label class="label">Pickup lng</label><input class="input" type="number" step="any" name="pickup_lng" value="${v.pickup_lng || ''}" /></div>
+    </div>
+    <div class="field"><label class="label">Description</label><textarea class="textarea" name="description">${escapeHtml(v.description || '')}</textarea></div>
+    <div class="field"><label class="label">Features (comma separated)</label><input class="input" name="features" value="${escapeHtml(v.features || '')}" placeholder="ABS, Bluetooth, GPS" /></div>
+  `;
+}
+
+function collectVehicleForm(host, isUpdate = false) {
+  const inputs = host.querySelectorAll('[name]');
+  const body = {};
+  for (const inp of inputs) {
+    if (inp.disabled && isUpdate) continue;
+    const v = inp.value;
+    if (v === '') continue;
+    if (['year','seats'].includes(inp.name)) body[inp.name] = parseInt(v);
+    else if (['hourly_rate','daily_rate','security_deposit','pickup_lat','pickup_lng'].includes(inp.name)) body[inp.name] = parseFloat(v);
+    else body[inp.name] = v;
+  }
+  return body;
+}
+
+/* -------------------------- BOOKINGS -------------------------- */
+async function renderBookings() {
+  const root = document.getElementById('tab-content');
+  root.innerHTML = '<p class="muted">Loading…</p>';
+  try {
+    const list = await api('/partners/me/bookings');
+    root.innerHTML = `
+      <p class="eyebrow">Bookings</p>
+      <h1 class="display mt-2 mb-6">All bookings</h1>
+      ${list.length ? renderPartnerBookingTable(list) : '<div class="empty-state"><p>No bookings yet.</p></div>'}
+    `;
+  } catch (err) {
+    root.innerHTML = `<p class="muted">${escapeHtml(err.message)}</p>`;
+  }
+}
+
+function renderPartnerBookingTable(list) {
+  return `
+    <div class="table-wrap">
+      <table class="table">
+        <thead><tr>
+          <th>Code</th><th>User</th><th>Pickup</th><th>Status</th><th>Payment</th><th>Total</th><th>Actions</th>
+        </tr></thead>
+        <tbody>
+          ${list.map(b => `
+            <tr>
+              <td class="font-mono text-xs">${escapeHtml(b.booking_code)}</td>
+              <td>#${b.user_id}</td>
+              <td class="text-xs">${fmtDate(b.pickup_at)}</td>
+              <td>${statusBadge(b.status)}</td>
+              <td>${statusBadge(b.payment_status)}</td>
+              <td>${fmtMoney(b.total_amount)}</td>
+              <td>${tripActions(b)}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function tripActions(b) {
+  if (b.status === 'CONFIRMED') return `<button class="btn btn-primary btn-sm" onclick="startTrip(${b.id})">Verify pickup</button>`;
+  if (b.status === 'ONGOING') return `<button class="btn btn-primary btn-sm" onclick="endTrip(${b.id})">Verify drop-off</button>`;
+  return '<span class="muted text-xs">—</span>';
+}
+
+window.startTrip = function(id) {
+  const m = modal({
+    title: 'Verify pickup OTP',
+    body: `<p class="muted text-sm">Ask the rider for their pickup OTP and enter it below.</p>
+           <div class="field mt-4"><input class="input font-mono" id="t-otp" maxlength="6" placeholder="6-digit code" /></div>`,
+    footer: `<button class="btn btn-secondary" data-modal-close>Cancel</button>
+             <button class="btn btn-primary" id="ok">Start trip</button>`,
+  });
+  m.el.querySelector('[data-modal-close]').onclick = m.close;
+  m.el.querySelector('#ok').onclick = async () => {
+    try {
+      await api(`/bookings/${id}/start`, { method: 'POST', body: { otp: m.el.querySelector('#t-otp').value.trim() } });
+      toast('Trip started', 'success');
+      m.close();
+      renderBookings();
+    } catch (err) { toast(err.message, 'error'); }
+  };
+};
+
+window.endTrip = function(id) {
+  const m = modal({
+    title: 'Verify drop-off OTP',
+    body: `<p class="muted text-sm">Ask the rider for their drop-off OTP. Add damage charges if any.</p>
+           <div class="field mt-4"><label class="label">Drop-off OTP</label><input class="input font-mono" id="t-otp" maxlength="6" /></div>
+           <div class="field-row">
+             <div class="field"><label class="label">Damage charges ₹</label><input class="input" type="number" id="t-dmg" value="0" /></div>
+             <div class="field"><label class="label">Notes</label><input class="input" id="t-notes" /></div>
+           </div>`,
+    footer: `<button class="btn btn-secondary" data-modal-close>Cancel</button>
+             <button class="btn btn-primary" id="ok">Complete trip</button>`,
+  });
+  m.el.querySelector('[data-modal-close]').onclick = m.close;
+  m.el.querySelector('#ok').onclick = async () => {
+    try {
+      await api(`/bookings/${id}/end`, { method: 'POST', body: {
+        otp: m.el.querySelector('#t-otp').value.trim(),
+        damage_charges: parseFloat(m.el.querySelector('#t-dmg').value) || 0,
+        notes: m.el.querySelector('#t-notes').value || null,
+      }});
+      toast('Trip completed', 'success');
+      m.close();
+      renderBookings();
+    } catch (err) { toast(err.message, 'error'); }
+  };
+};
+
+/* -------------------------- KYC -------------------------- */
+async function renderKYC() {
+  const root = document.getElementById('tab-content');
+  root.innerHTML = '<p class="muted">Loading…</p>';
+  try {
+    const docs = await api('/partners/me/documents');
+    me = await api('/partners/me');
+    root.innerHTML = `
+      <p class="eyebrow">KYC</p>
+      <h1 class="display mt-2 mb-2">Verification</h1>
+      <p class="mb-6">Status: ${kycBadge(me.kyc_status)}</p>
+      ${me.kyc_remarks ? `<div class="card-flat mb-6"><strong>Admin remarks:</strong> ${escapeHtml(me.kyc_remarks)}</div>` : ''}
+
+      <div class="card mb-6" style="max-width: 720px;">
+        <h3 class="mb-4">Upload document</h3>
+        <form id="doc-form">
+          <div class="field-row">
+            <div class="field">
+              <label class="label">Document type</label>
+              <select class="select" name="doc_type" required>
+                ${['AADHAAR','PAN','DL','PASSPORT','VOTER_ID','GST'].map(t => `<option value="${t}">${t}</option>`).join('')}
+              </select>
+            </div>
+            <div class="field">
+              <label class="label">Document number</label>
+              <input class="input" name="doc_number" />
+            </div>
+          </div>
+          <div class="field">
+            <label class="label">File</label>
+            <input class="input" type="file" name="file" required accept="image/*,application/pdf" />
+          </div>
+          <button type="submit" class="btn btn-primary">Upload</button>
+        </form>
+      </div>
+
+      <h3 class="mb-4">Uploaded documents</h3>
+      ${docs.length ? `<div class="grid grid-2">${docs.map(d => `
+        <div class="card-flat">
+          <div class="flex justify-between items-start">
+            <div>
+              <strong>${d.doc_type}</strong>
+              <p class="text-xs muted">${d.doc_number ? escapeHtml(d.doc_number) : '—'}</p>
+            </div>
+            ${d.is_verified ? '<span class="badge badge-success">Verified</span>' : '<span class="badge badge-warn">Pending</span>'}
+          </div>
+          <div class="flex gap-2 mt-4">
+            <a href="${CONFIG.API_BASE}/${d.file_url.replace(/^\/+/,'')}" target="_blank" class="btn btn-secondary btn-sm">View</a>
+            <button class="btn btn-ghost btn-sm" onclick="deleteDoc(${d.id})">Delete</button>
+          </div>
+        </div>`).join('')}</div>` : '<p class="muted text-sm">No documents uploaded yet.</p>'}
+
+      <div class="mt-6">
+        ${me.kyc_status !== 'APPROVED' ? `<button class="btn btn-primary" onclick="submitKYC()">Submit for review</button>` : ''}
+      </div>
+    `;
+    document.getElementById('doc-form').addEventListener('submit', async e => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      try {
+        await api('/partners/me/documents', { method: 'POST', body: fd, isForm: true });
+        toast('Document uploaded', 'success');
+        renderKYC();
+      } catch (err) { toast(err.message, 'error'); }
+    });
+  } catch (err) {
+    root.innerHTML = `<p class="muted">${escapeHtml(err.message)}</p>`;
+  }
+}
+
+window.deleteDoc = async function(id) {
+  if (!await confirmModal('Delete this document?', { danger: true })) return;
+  try {
+    await api(`/partners/me/documents/${id}`, { method: 'DELETE' });
+    toast('Deleted', 'success');
+    renderKYC();
+  } catch (err) { toast(err.message, 'error'); }
+};
+
+window.submitKYC = async function() {
+  if (!await confirmModal('Submit your documents for admin review?')) return;
+  try {
+    await api('/partners/me/submit-kyc', { method: 'POST' });
+    toast('Submitted for review', 'success');
+    renderKYC();
+  } catch (err) { toast(err.message, 'error'); }
+};
+
+/* -------------------------- PROFILE -------------------------- */
+async function renderProfile() {
+  const root = document.getElementById('tab-content');
+  me = await api('/partners/me');
+  root.innerHTML = `
+    <p class="eyebrow">Profile</p>
+    <h1 class="display mt-2 mb-6">Your business</h1>
+    <div class="card" style="max-width: 720px;">
+      <form id="p-form">
+        <div class="field-row">
+          <div class="field"><label class="label">Full name</label><input class="input" name="full_name" value="${escapeHtml(me.full_name || '')}" /></div>
+          <div class="field"><label class="label">Email</label><input class="input" type="email" name="email" value="${escapeHtml(me.email || '')}" /></div>
+        </div>
+        <div class="field-row">
+          <div class="field"><label class="label">Business name</label><input class="input" name="business_name" value="${escapeHtml(me.business_name || '')}" /></div>
+          <div class="field"><label class="label">GST number</label><input class="input" name="gst_number" value="${escapeHtml(me.gst_number || '')}" /></div>
+        </div>
+        <div class="field"><label class="label">Address</label><textarea class="textarea" name="address">${escapeHtml(me.address || '')}</textarea></div>
+        <div class="field-row">
+          <div class="field"><label class="label">City</label><input class="input" name="city" value="${escapeHtml(me.city || '')}" /></div>
+          <div class="field"><label class="label">State</label><input class="input" name="state" value="${escapeHtml(me.state || '')}" /></div>
+        </div>
+        <button class="btn btn-primary" type="submit">Save changes</button>
+      </form>
+    </div>
+
+    <h3 class="mt-8 mb-4">Bank account</h3>
+    <div class="card" style="max-width: 720px;">
+      <form id="bank-form">
+        <div class="field-row">
+          <div class="field"><label class="label">Account number</label><input class="input" name="bank_account_number" value="${escapeHtml(me.bank_account_number || '')}" required /></div>
+          <div class="field"><label class="label">IFSC</label><input class="input" name="bank_ifsc" value="${escapeHtml(me.bank_ifsc || '')}" required /></div>
+        </div>
+        <div class="field"><label class="label">Holder name</label><input class="input" name="bank_holder_name" value="${escapeHtml(me.bank_holder_name || '')}" required /></div>
+        <button class="btn btn-secondary" type="submit">Save bank info</button>
+      </form>
+    </div>
+  `;
+
+  document.getElementById('p-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const body = {};
+    for (const [k, v] of fd.entries()) if (v) body[k] = v;
+    try {
+      me = await api('/partners/me', { method: 'PATCH', body });
+      toast('Profile updated', 'success');
+    } catch (err) { toast(err.message, 'error'); }
+  });
+
+  document.getElementById('bank-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const body = {};
+    for (const [k, v] of fd.entries()) body[k] = v;
+    try {
+      me = await api('/partners/me/bank', { method: 'POST', body });
+      toast('Bank info saved', 'success');
+    } catch (err) { toast(err.message, 'error'); }
+  });
+}
+
+init();
+</script>
+
+</body>
+</html>
