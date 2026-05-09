@@ -1,0 +1,371 @@
+{
+  "info": {
+    "name": "Vehicle Rental API",
+    "description": "Self-drive vehicle rental backend — User, Partner, Admin flows.\n\n**Setup:**\n1. Set `base_url` variable (default: http://localhost:8000)\n2. Run requests in order — auth requests auto-save tokens to collection variables.\n\n**Three role flows:**\n- **User**: request-otp → verify-otp → search → estimate → book → pay → (partner verifies pickup OTP) → (partner verifies dropoff OTP) → rate → invoice\n- **Partner**: request-otp → verify-otp → upload KYC → submit → (wait for admin) → add vehicle → manage bookings\n- **Admin**: login → review KYC → verify vehicles → block users → view stats",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:8000" },
+    { "key": "api", "value": "{{base_url}}/api/v1" },
+    { "key": "user_token", "value": "" },
+    { "key": "user_refresh_token", "value": "" },
+    { "key": "partner_token", "value": "" },
+    { "key": "partner_refresh_token", "value": "" },
+    { "key": "admin_token", "value": "" },
+    { "key": "user_phone", "value": "+919876543210" },
+    { "key": "partner_phone", "value": "+919811111111" },
+    { "key": "admin_email", "value": "admin@vehiclerental.com" },
+    { "key": "admin_password", "value": "Admin@12345" },
+    { "key": "partner_id", "value": "" },
+    { "key": "vehicle_id", "value": "" },
+    { "key": "booking_id", "value": "" },
+    { "key": "pickup_otp", "value": "" },
+    { "key": "dropoff_otp", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        { "name": "GET /health", "request": { "method": "GET", "url": "{{api}}/health" } }
+      ]
+    },
+    {
+      "name": "1. User Auth (OTP)",
+      "item": [
+        {
+          "name": "Request OTP",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "var json = pm.response.json();",
+            "if (json.debug_otp) pm.collectionVariables.set('user_otp', json.debug_otp);"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"phone\": \"{{user_phone}}\"\n}" },
+            "url": "{{api}}/auth/user/request-otp"
+          }
+        },
+        {
+          "name": "Verify OTP (saves token)",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "var json = pm.response.json();",
+            "if (json.tokens) {",
+            "  pm.collectionVariables.set('user_token', json.tokens.access_token);",
+            "  pm.collectionVariables.set('user_refresh_token', json.tokens.refresh_token);",
+            "}"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"phone\": \"{{user_phone}}\",\n  \"otp\": \"{{user_otp}}\"\n}" },
+            "url": "{{api}}/auth/user/verify-otp"
+          }
+        },
+        {
+          "name": "Refresh Token",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"refresh_token\": \"{{user_refresh_token}}\"\n}" },
+            "url": "{{api}}/auth/refresh"
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. User Profile",
+      "item": [
+        {
+          "name": "Get me",
+          "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{user_token}}" }], "url": "{{api}}/users/me" }
+        },
+        {
+          "name": "Update profile",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Authorization", "value": "Bearer {{user_token}}" }, { "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"full_name\": \"Aarav Sharma\",\n  \"email\": \"aarav@example.com\"\n}" },
+            "url": "{{api}}/users/me"
+          }
+        },
+        {
+          "name": "Save DL number",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{user_token}}" }, { "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"dl_number\": \"MH0120220001234\"\n}" },
+            "url": "{{api}}/users/me/dl"
+          }
+        },
+        {
+          "name": "Upload DL image",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{user_token}}" }],
+            "body": { "mode": "formdata", "formdata": [{ "key": "file", "type": "file", "src": [] }] },
+            "url": "{{api}}/users/me/dl-image"
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Partner Auth & KYC",
+      "item": [
+        {
+          "name": "Partner request OTP",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "var json = pm.response.json();",
+            "if (json.debug_otp) pm.collectionVariables.set('partner_otp', json.debug_otp);"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"phone\": \"{{partner_phone}}\"\n}" },
+            "url": "{{api}}/auth/partner/request-otp"
+          }
+        },
+        {
+          "name": "Partner verify OTP",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "var json = pm.response.json();",
+            "if (json.tokens) {",
+            "  pm.collectionVariables.set('partner_token', json.tokens.access_token);",
+            "  pm.collectionVariables.set('partner_refresh_token', json.tokens.refresh_token);",
+            "  pm.collectionVariables.set('partner_id', json.user_id);",
+            "}"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"phone\": \"{{partner_phone}}\",\n  \"otp\": \"{{partner_otp}}\"\n}" },
+            "url": "{{api}}/auth/partner/verify-otp"
+          }
+        },
+        {
+          "name": "Update partner profile",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Authorization", "value": "Bearer {{partner_token}}" }, { "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"business_name\": \"Mumbai Self-Drive\",\n  \"contact_person\": \"Rohan Patel\",\n  \"email\": \"ops@mumbairentals.in\",\n  \"city\": \"Mumbai\",\n  \"state\": \"Maharashtra\",\n  \"pincode\": \"400001\",\n  \"address_line\": \"12 Marine Drive\",\n  \"hub_lat\": 18.9388,\n  \"hub_lng\": 72.8354\n}" },
+            "url": "{{api}}/partners/me"
+          }
+        },
+        {
+          "name": "Save bank details",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{partner_token}}" }, { "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"bank_account_number\": \"1234567890123\",\n  \"bank_ifsc\": \"hdfc0001234\",\n  \"bank_holder_name\": \"Mumbai Self-Drive\"\n}" },
+            "url": "{{api}}/partners/me/bank"
+          }
+        },
+        {
+          "name": "Upload AADHAAR",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{partner_token}}" }],
+            "body": { "mode": "formdata", "formdata": [
+              { "key": "doc_type", "value": "AADHAAR", "type": "text" },
+              { "key": "doc_number", "value": "1234-5678-9012", "type": "text" },
+              { "key": "file", "type": "file", "src": [] }
+            ]},
+            "url": "{{api}}/partners/me/documents"
+          }
+        },
+        {
+          "name": "Upload PAN",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{partner_token}}" }],
+            "body": { "mode": "formdata", "formdata": [
+              { "key": "doc_type", "value": "PAN", "type": "text" },
+              { "key": "doc_number", "value": "ABCDE1234F", "type": "text" },
+              { "key": "file", "type": "file", "src": [] }
+            ]},
+            "url": "{{api}}/partners/me/documents"
+          }
+        },
+        {
+          "name": "List my documents",
+          "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{partner_token}}" }], "url": "{{api}}/partners/me/documents" }
+        },
+        {
+          "name": "Submit KYC for review",
+          "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{partner_token}}" }], "url": "{{api}}/partners/me/submit-kyc" }
+        }
+      ]
+    },
+    {
+      "name": "4. Partner Vehicles",
+      "item": [
+        {
+          "name": "Add vehicle",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "var json = pm.response.json();",
+            "if (json.id) pm.collectionVariables.set('vehicle_id', json.id);"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{partner_token}}" }, { "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"vehicle_type\": \"BIKE\",\n  \"brand\": \"Royal Enfield\",\n  \"model\": \"Classic 350\",\n  \"year\": 2023,\n  \"color\": \"Black\",\n  \"registration_number\": \"MH01AB1234\",\n  \"fuel_type\": \"PETROL\",\n  \"transmission\": \"MANUAL\",\n  \"seats\": 2,\n  \"hourly_rate\": 120,\n  \"daily_rate\": 1500,\n  \"weekly_rate\": 8500,\n  \"security_deposit\": 3000,\n  \"pickup_address\": \"Marine Drive, Mumbai\",\n  \"pickup_lat\": 18.9388,\n  \"pickup_lng\": 72.8354,\n  \"pickup_city\": \"Mumbai\",\n  \"description\": \"Premium classic bike, well-maintained\",\n  \"features\": \"ABS,Disc Brakes,LED Headlamp\"\n}" },
+            "url": "{{api}}/partners/me/vehicles"
+          }
+        },
+        { "name": "List my vehicles", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{partner_token}}" }], "url": "{{api}}/partners/me/vehicles" } },
+        {
+          "name": "Update vehicle",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Authorization", "value": "Bearer {{partner_token}}" }, { "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"hourly_rate\": 130,\n  \"daily_rate\": 1600\n}" },
+            "url": "{{api}}/partners/me/vehicles/{{vehicle_id}}"
+          }
+        },
+        {
+          "name": "Upload vehicle image",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{partner_token}}" }],
+            "body": { "mode": "formdata", "formdata": [{ "key": "file", "type": "file", "src": [] }] },
+            "url": "{{api}}/partners/me/vehicles/{{vehicle_id}}/images"
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Admin",
+      "item": [
+        {
+          "name": "Admin login",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "var json = pm.response.json();",
+            "if (json.tokens) pm.collectionVariables.set('admin_token', json.tokens.access_token);"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{admin_email}}\",\n  \"password\": \"{{admin_password}}\"\n}" },
+            "url": "{{api}}/auth/admin/login"
+          }
+        },
+        { "name": "Stats", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }], "url": "{{api}}/admin/stats" } },
+        { "name": "List partners (KYC pending)", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }], "url": "{{api}}/admin/partners?kyc_status=SUBMITTED" } },
+        {
+          "name": "Approve partner KYC",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }, { "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"status\": \"APPROVED\",\n  \"remarks\": \"Documents verified\"\n}" },
+            "url": "{{api}}/admin/partners/{{partner_id}}/kyc/review"
+          }
+        },
+        { "name": "Verify vehicle", "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }], "url": "{{api}}/admin/vehicles/{{vehicle_id}}/verify" } },
+        { "name": "List all vehicles", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }], "url": "{{api}}/admin/vehicles" } },
+        { "name": "List all bookings", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }], "url": "{{api}}/admin/bookings" } },
+        { "name": "List users", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }], "url": "{{api}}/admin/users" } }
+      ]
+    },
+    {
+      "name": "6. Vehicle Search (Public)",
+      "item": [
+        { "name": "Search bikes near me", "request": { "method": "GET", "url": "{{api}}/vehicles/search?vehicle_type=BIKE&lat=18.94&lng=72.83&radius_km=10" } },
+        { "name": "Search by city", "request": { "method": "GET", "url": "{{api}}/vehicles/search?city=Mumbai" } },
+        { "name": "Search with date filter", "request": { "method": "GET", "url": "{{api}}/vehicles/search?vehicle_type=CAR&pickup_at=2026-05-15T10:00:00&dropoff_at=2026-05-15T18:00:00" } },
+        { "name": "Get vehicle by id", "request": { "method": "GET", "url": "{{api}}/vehicles/{{vehicle_id}}" } }
+      ]
+    },
+    {
+      "name": "7. User Bookings",
+      "item": [
+        {
+          "name": "Estimate fare",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"vehicle_id\": {{vehicle_id}},\n  \"pickup_at\": \"2026-05-15T10:00:00\",\n  \"dropoff_at\": \"2026-05-15T18:00:00\"\n}" },
+            "url": "{{api}}/bookings/estimate"
+          }
+        },
+        {
+          "name": "Create booking",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "var json = pm.response.json();",
+            "if (json.id) pm.collectionVariables.set('booking_id', json.id);"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{user_token}}" }, { "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"vehicle_id\": {{vehicle_id}},\n  \"pickup_at\": \"2026-05-15T10:00:00\",\n  \"dropoff_at\": \"2026-05-15T18:00:00\",\n  \"pickup_location\": \"Marine Drive\",\n  \"dropoff_location\": \"Marine Drive\",\n  \"notes\": \"Will be there at 10\"\n}" },
+            "url": "{{api}}/bookings"
+          }
+        },
+        {
+          "name": "Pay (mock)",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "var json = pm.response.json();",
+            "if (json.pickup_otp) pm.collectionVariables.set('pickup_otp', json.pickup_otp);",
+            "if (json.dropoff_otp) pm.collectionVariables.set('dropoff_otp', json.dropoff_otp);"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{user_token}}" }, { "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"booking_id\": {{booking_id}},\n  \"method\": \"upi\"\n}" },
+            "url": "{{api}}/bookings/{{booking_id}}/pay"
+          }
+        },
+        { "name": "List my bookings", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{user_token}}" }], "url": "{{api}}/bookings" } },
+        { "name": "Get booking detail", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{user_token}}" }], "url": "{{api}}/bookings/{{booking_id}}" } },
+        {
+          "name": "Cancel booking",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{user_token}}" }, { "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"reason\": \"Plans changed\"\n}" },
+            "url": "{{api}}/bookings/{{booking_id}}/cancel"
+          }
+        },
+        { "name": "Download invoice (PDF)", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{user_token}}" }], "url": "{{api}}/bookings/{{booking_id}}/invoice" } }
+      ]
+    },
+    {
+      "name": "8. Partner Trip Management",
+      "item": [
+        { "name": "Partner: list bookings", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{partner_token}}" }], "url": "{{api}}/partners/me/bookings" } },
+        {
+          "name": "Verify pickup OTP (start trip)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{partner_token}}" }, { "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"otp\": \"{{pickup_otp}}\"\n}" },
+            "url": "{{api}}/bookings/{{booking_id}}/start"
+          }
+        },
+        {
+          "name": "Verify dropoff OTP (end trip)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{partner_token}}" }, { "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"otp\": \"{{dropoff_otp}}\",\n  \"damage_charges\": 0,\n  \"notes\": \"Returned in good condition\"\n}" },
+            "url": "{{api}}/bookings/{{booking_id}}/end"
+          }
+        }
+      ]
+    },
+    {
+      "name": "9. Ratings",
+      "item": [
+        {
+          "name": "Submit rating",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{user_token}}" }, { "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"booking_id\": {{booking_id}},\n  \"stars\": 5,\n  \"review\": \"Smooth experience, bike was clean\"\n}" },
+            "url": "{{api}}/ratings"
+          }
+        },
+        { "name": "Vehicle ratings", "request": { "method": "GET", "url": "{{api}}/ratings/vehicle/{{vehicle_id}}" } },
+        { "name": "Partner ratings", "request": { "method": "GET", "url": "{{api}}/ratings/partner/{{partner_id}}" } }
+      ]
+    }
+  ]
+}
